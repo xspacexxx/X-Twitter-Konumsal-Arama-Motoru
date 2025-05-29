@@ -1,2 +1,3 @@
-# X-TW-TTER-KONUMSAL-ARAMA-MOTORU
-X KONUMSAL ARAMA MOTORU
+# X-TWİTTER KONUMSAL ARAMA MOTORU
+![image](https://github.com/user-attachments/assets/1635b189-93db-4a42-8903-e973a558590b)
+Bu uygulama, Twitter üzerinde konumsal arama yapmanıza olanak sağlar. Seçtiğiniz şehir ve yarıçap doğrultusunda aradıgınız paylaşımları bulabilirsiniz.  Kullanım için önce aramak istediğiniz kelimeyi giriniz ve arama yapmak istediğinin filtre butonuna tıklayarak arama yapaptığınızda yeni sekmede X-Twitter araması seçilen koordinat, yarıçap ve filtre ile açılacaktır. HATA ALDIĞINIZ ZAMAN LÜTFEN 5 DK BEKELEYEREK YENİDEN DENEYİNİz. Sadece TR şehirleri varsayılan olarak eklenmiştir. Diğer ülke ve şehirleri elle seçim yaparak yine arama yapabilirsiniz. # HERHANGİ BİR ŞEKİLDE APİ İSTEMEZ.
