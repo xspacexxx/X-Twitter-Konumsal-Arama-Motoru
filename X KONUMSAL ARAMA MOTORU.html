@@ -1,0 +1,3834 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Twitter konumsal arama motoru">
+    <meta name="keywords" content="twitter, arama, konum, x">
+    <title>X KONUMSAL ARAMA MOTORU</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🔍</text></svg>">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/remixicon@2.5.0/fonts/remixicon.css">
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.5.1/dist/confetti.browser.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.1/build/qrcode.min.js"></script>
+    <style>
+        /* Genel Stil */
+        * {
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            margin: 0;
+            padding: 0;
+            background: linear-gradient(135deg, #f8f9fa 0%, #ffffff 100%);
+            color: #0F1419;
+            display: flex;
+            flex-wrap: nowrap;
+            align-items: flex-start;
+            padding: 20px;
+            position: relative;
+            min-height: 100vh;
+        }
+
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: radial-gradient(circle at 20% 30%, rgba(0, 172, 238, 0.1) 0%, transparent 30%),
+                        radial-gradient(circle at 80% 70%, rgba(121, 55, 224, 0.1) 0%, transparent 30%);
+            z-index: -1;
+            pointer-events: none;
+        }
+
+        body.dark-mode {
+            background: linear-gradient(135deg, #121212 0%, #1e1e1e 100%);
+            color: #e7e9ea;
+        }
+
+        body.dark-mode::before {
+            background: radial-gradient(circle at 20% 30%, rgba(0, 172, 238, 0.05) 0%, transparent 30%),
+                        radial-gradient(circle at 80% 70%, rgba(121, 55, 224, 0.05) 0%, transparent 30%);
+        }
+
+        /* Scrollbar */
+        ::-webkit-scrollbar {
+            width: 12px;
+            height: 12px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: rgba(0,0,0,0.1);
+            border-radius: 10px;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: linear-gradient(#00ACEE, #7937e0);
+            border-radius: 10px;
+            border: 3px solid rgba(0,0,0,0);
+            background-clip: padding-box;
+        }
+
+        .dark-mode ::-webkit-scrollbar-thumb {
+            background: linear-gradient(#7937e0, #00ACEE);
+        }
+
+        /* Dark Mode Butonu */
+        #toggleDarkMode {
+            padding: 12px 20px;
+            border-radius: 12px;
+            font-weight: 600;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            border: none;
+            position: relative;
+            overflow: hidden;
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            text-transform: uppercase;
+            background: linear-gradient(135deg, #00ACEE, #0066FF);
+            color: white;
+            font-size: 0.85rem;
+            position: static;
+            margin-bottom: 20px;
+            width: 100%;
+            margin-top: 0; /* Üst boşluğu sıfırla */
+        }
+
+        #toggleDarkMode:hover {
+            box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
+        }
+
+        #toggleDarkMode:active {
+            transform: translateY(0);
+        }
+
+        /* Sol Panel (Ayarlar) */
+        .left-panel {
+            width: 250px;
+            padding: 20px;
+            border-radius: 20px;
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            backdrop-filter: blur(12px);
+            background: linear-gradient(135deg, rgba(255,255,255,0.9) 0%, rgba(245,248,250,0.9) 100%);
+            animation: slideUp 0.6s ease-out;
+            height: auto;
+            min-height: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .dark-mode .left-panel {
+            background: linear-gradient(135deg, rgba(30, 30, 30, 0.9) 0%, rgba(40, 40, 40, 0.9) 100%);
+            border-color: rgba(0, 0, 0, 0.4);
+        }
+
+        /* Ayarlar Sütunundaki Butonlar */
+        .left-panel button {
+            width: 100%;
+            margin-bottom: 0; /* Alt boşluğu sıfırla */
+            padding: 12px 20px;
+            font-size: 0.9rem;
+            text-align: center;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            box-sizing: border-box;
+        }
+
+        .left-panel button:last-child {
+            margin-bottom: 0;
+        }
+
+        /* Ayarlar Başlığı */
+        .settings-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 20px;
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #00ACEE;
+            text-transform: uppercase;
+        }
+
+        .settings-header h2 {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin: 0;
+        }
+
+        .settings-header i {
+            font-size: 1.8rem;
+            color: #00ACEE;
+        }
+
+        /* Ayarlar Bilgi Kutusu */
+        .settings-info {
+            flex: 1;
+            padding: 12px;
+            background: linear-gradient(135deg, rgba(240,242,245,0.9), rgba(210,230,250,0.9));
+            border-radius: 12px;
+            font-size: 0.9rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            min-width: 200px;
+            border-left: 4px solid #00ACEE;
+            font-weight: 500;
+            text-align: center;
+            margin-bottom: 10px; /* Alt boşluğu azalt */
+        }
+
+        .dark-mode .settings-info {
+            background: linear-gradient(135deg, rgba(30,30,30,0.9), rgba(40,40,40,0.9));
+            color: #e7e9ea;
+            border-color: #444;
+        }
+
+        /* Modern Settings Info */
+        .settings-info.modern-info {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            padding: 15px;
+            background: linear-gradient(135deg, rgba(0, 172, 238, 0.1), rgba(121, 55, 224, 0.1));
+            border-radius: 12px;
+            font-size: 1rem;
+            font-weight: bold;
+            color: #00ACEE;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            border-left: 4px solid #00ACEE;
+            transition: all 0.3s ease;
+        }
+
+        .settings-info.modern-info:hover {
+            background: linear-gradient(135deg, rgba(0, 172, 238, 0.2), rgba(121, 55, 224, 0.2));
+            box-shadow: 0 6px 16px rgba(0, 0, 0, 0.15);
+        }
+
+        .settings-info .modern-icon {
+            font-size: 1.5rem;
+            color: #00ACEE;
+            animation: float 2s infinite ease-in-out;
+        }
+
+        .settings-info .modern-city {
+            font-size: 1.2rem;
+            font-weight: 700;
+            color: #0F1419;
+        }
+
+        .settings-info .modern-separator {
+            font-size: 1.2rem;
+            font-weight: 700;
+            color: #657786;
+        }
+
+        .settings-info .modern-radius {
+            font-size: 1.2rem;
+            font-weight: 700;
+            color: #7937e0;
+        }
+
+        /* Float Animation */
+        @keyframes float {
+            0%, 100% {
+                transform: translateY(0);
+            }
+            50% {
+                transform: translateY(-5px);
+            }
+        }
+
+        /* Ana İçerik */
+        .main-content {
+            flex: 1;
+            padding: 30px;
+            border-radius: 20px;
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            backdrop-filter: blur(12px);
+            background: linear-gradient(135deg, rgba(255,255,255,0.9) 0%, rgba(245,248,250,0.9) 100%);
+            margin: 0 20px;
+            animation: slideUp 0.6s ease-out;
+            height: auto;
+            min-height: 0;
+        }
+
+        .dark-mode .main-content {
+            background: linear-gradient(135deg, rgba(30, 30, 30, 0.9) 0%, rgba(40, 40, 40, 0.9) 100%);
+            border-color: rgba(0, 0, 0, 0.4);
+        }
+
+        /* Sağ Panel (Son Aramalar ve Favoriler) */
+        .right-panel {
+            width: 456px;
+            padding: 20px;
+            border-radius: 20px;
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            backdrop-filter: blur(12px);
+            background: linear-gradient(135deg, rgba(255,255,255,0.9) 0%, rgba(245,248,250,0.9) 100%);
+            animation: slideUp 0.6s ease-out;
+            height: auto;
+            min-height: 0;
+        }
+
+        .dark-mode .right-panel {
+            background: linear-gradient(135deg, rgba(30, 30, 30, 0.9) 0%, rgba(40, 40, 40, 0.9) 100%);
+            border-color: rgba(0, 0, 0, 0.4);
+        }
+
+        /* Arama Başlığı */
+        .form-container h2 {
+            font-size: 2.5rem;
+            margin-top: 0;
+            margin-bottom: 25px;
+            color: #00ACEE;
+            text-transform: uppercase;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            text-align: center;
+            letter-spacing: 1px;
+        }
+
+        .search-engine-text {
+            background: linear-gradient(90deg, #00ACEE, #7937e0);
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+            font-weight: 800;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        /* Input Grupları */
+        .input-group {
+            position: relative;
+            margin-bottom: 25px;
+        }
+
+        .input-group::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 0;
+            height: 3px;
+            background: linear-gradient(90deg, #00ACEE, #7937e0);
+            transition: width 0.4s ease;
+        }
+
+        .input-group:focus-within::after {
+            width: 100%;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 10px;
+            font-weight: 600;
+            color: #566370;
+            text-transform: uppercase;
+            font-size: 0.85rem;
+            letter-spacing: 0.5px;
+        }
+
+        .dark-mode label {
+            color: #8b98a5;
+        }
+
+        input[type="text"],
+        select,
+        input[type="number"],
+        input[type="date"] {
+            width: 100%;
+            padding: 14px 18px;
+            margin-bottom: 5px;
+            border: 2px solid #e0e0e0;
+            border-radius: 12px;
+            font-size: 1rem;
+            box-sizing: border-box;
+            background-color: rgba(255,255,255,0.8);
+            transition: all 0.3s;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+        }
+
+        input[type="text"]:focus,
+        select:focus,
+        input[type="number"]:focus,
+        input[type="date"]:focus {
+            border-color: #00ACEE;
+            box-shadow: 0 0 0 3px rgba(0, 172, 238, 0.2), 0 5px 15px rgba(0, 172, 238, 0.2);
+            outline: none;
+            background-color: white;
+        }
+
+        .dark-mode input[type="text"],
+        .dark-mode select,
+        .dark-mode input[type="number"],
+        .dark-mode input[type="date"] {
+            background: rgba(30,30,30,0.8);
+            color: #fff;
+            border-color: #444;
+        }
+
+        input::placeholder {
+            color: #657786;
+            opacity: 1;
+            transition: all 0.3s;
+        }
+
+        input:focus::placeholder {
+            color: transparent;
+        }
+
+        .dark-mode input::placeholder {
+            color: #8b98a5;
+        }
+
+        /* Tarih Giriş Butonları */
+        input[type="date"] {
+            width: 180px;
+            padding: 12px;
+            font-size: 1rem;
+            border: 2px solid #e0e0e0;
+            border-radius: 12px;
+            box-sizing: border-box;
+            cursor: pointer;
+        }
+
+        input[type="date"]::-webkit-calendar-picker-indicator {
+            filter: invert(0.5);
+            padding: 4px;
+            cursor: pointer;
+        }
+
+        .dark-mode input[type="date"]::-webkit-calendar-picker-indicator {
+            filter: invert(0.8);
+        }
+
+        /* Arama Terimi ve Tarih Aralığı */
+        .search-query-and-dates {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 0; /* Alt boşluğu sıfırla */
+            flex-wrap: wrap;
+        }
+
+        .search-query-and-dates .search-query {
+            flex: 3;
+        }
+
+        .search-query-and-dates .date-range {
+            flex: 2;
+            display: flex;
+            gap: 15px;
+        }
+
+        /* Arama Filtreleri */
+        .search-filters {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 25px;
+            flex-wrap: wrap;
+        }
+
+        /* Butonlar için Ortak Stil */
+        button {
+            padding: 14px 22px;
+            border-radius: 12px;
+            font-weight: 600;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+            border: none;
+            position: relative;
+            overflow: hidden;
+            font-size: 0.95rem;
+            cursor: pointer;
+            text-transform: uppercase;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            color: white;
+            letter-spacing: 0.5px;
+            position: relative;
+        }
+
+        button:hover {
+            transform: translateY(-3px) scale(1.03);
+            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.15);
+        }
+
+        button:hover i {
+            transform: scale(1.2);
+        }
+
+        button:active {
+            transform: translateY(0);
+        }
+
+        button i {
+            transition: transform 0.3s ease;
+        }
+
+        .ripple-effect {
+            position: absolute;
+            transform: translate(-50%, -50%);
+            width: 5px;
+            height: 5px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.7);
+            animation: ripple 1s linear;
+            pointer-events: none;
+        }
+
+        @keyframes ripple {
+            to {
+                width: 500px;
+                height: 500px;
+                opacity: 0;
+            }
+        }
+
+        /* Özel Buton Stilleri */
+        .search-filters button {
+            flex: 1;
+            min-width: 120px;
+            padding: 12px;
+            background-color: #f0f2f5;
+            border: 1px solid #ddd;
+            font-size: 0.85rem;
+        }
+
+        .search-filters button.active {
+            background: linear-gradient(135deg, #00ACEE, #0066FF);
+            color: white;
+            border-color: #00ACEE;
+        }
+
+        .search-filters button:hover {
+            background-color: #e2e5e9;
+        }
+
+        .primary-btn {
+            background: linear-gradient(135deg, #00ACEE, #0066FF);
+            box-shadow: 0 4px 15px rgba(0, 172, 238, 0.4);
+        }
+
+        .primary-btn:hover i {
+            animation: bounce 0.5s;
+        }
+
+        .danger-btn {
+            background: linear-gradient(135deg, #FF4D4D, #CC0000);
+            box-shadow: 0 4px 15px rgba(255, 77, 77, 0.4);
+        }
+
+        .success-btn {
+            background: linear-gradient(135deg, #4CAF50, #2E7D32);
+            box-shadow: 0 4px 15px rgba(76, 175, 80, 0.4);
+        }
+
+        .secondary-btn {
+            background: linear-gradient(135deg, #6A5ACD, #4B0082);
+            box-shadow: 0 4px 15px rgba(106, 90, 205, 0.4);
+        }
+
+        .info-btn {
+            background: linear-gradient(135deg, #00b4db, #0083b0);
+            box-shadow: 0 4px 15px rgba(0, 180, 219, 0.3);
+        }
+
+        /* Ayarlar Sütun (Tek Sıra) */
+        .settings-row {
+            display: flex;
+            gap: 3px; /* Aradaki boşluğu azalt */
+            margin-bottom: 15px;
+            align-items: flex-end;
+            flex-wrap: wrap;
+        }
+
+        .form-buttons {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 25px;
+            flex-wrap: wrap;
+        }
+
+        .form-buttons button {
+            flex: 1 1 auto;
+            min-width: 120px;
+        }
+
+        /* HARİTA DÜZENİ */
+        #map {
+            height: 500px;
+            margin-top: 25px;
+            border-radius: 16px;
+            z-index: 1;
+            width: 100%;
+            max-width: 1200px;
+            margin-left: auto;
+            margin-right: auto;
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.15);
+            border: 1px solid rgba(0,0,0,0.1);
+            transition: all 0.3s;
+        }
+
+        #map:hover {
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.2);
+        }
+
+        .pulse-circle {
+            animation: pulse-border 2s infinite;
+        }
+
+        @keyframes pulse-border {
+            0% { stroke-width: 2px; }
+            50% { stroke-width: 4px; }
+            100% { stroke-width: 2px; }
+        }
+
+        /* İstatistik Kartları */
+        .stats-container {
+            display: flex;
+            gap: 15px;
+            margin-top: 20px;
+            flex-wrap: wrap;
+        }
+
+        .stats-card {
+            flex: 1;
+            min-width: 150px;
+            padding: 15px;
+            border-radius: 12px;
+            background: rgba(255,255,255,0.9);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            transition: all 0.3s;
+            position: relative;
+            overflow: hidden;
+            border-left: 4px solid;
+        }
+
+        .stats-card:nth-child(1) {
+            border-color: #00ACEE;
+            background: rgba(0, 172, 238, 0.05);
+        }
+        .stats-card:nth-child(2) {
+            border-color: #7937e0;
+            background: rgba(121, 55, 224, 0.05);
+        }
+        .stats-card:nth-child(3) {
+            border-color: #FF4500;
+            background: rgba(255, 69, 0, 0.05);
+        }
+
+        .stats-card i {
+            font-size: 2rem;
+            padding: 15px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, rgba(255,255,255,0.9), rgba(255,255,255,0.6));
+            color: inherit;
+        }
+
+        .dark-mode .stats-card i {
+            background: linear-gradient(135deg, rgba(30,30,30,0.9), rgba(40,40,40,0.6));
+        }
+
+        .stats-card div {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .stats-card .count {
+            font-size: 1.3rem;
+            font-weight: 700;
+            color: #0F1419;
+        }
+
+        .stats-card span:last-child {
+            font-size: 0.8rem;
+            color: #657786;
+        }
+
+        .dark-mode .stats-card {
+            background: rgba(30,30,30,0.9);
+        }
+
+        .dark-mode .stats-card .count {
+            color: #e7e9ea;
+        }
+
+        .dark-mode .stats-card span:last-child {
+            color: #8b98a5;
+        }
+
+        /* Son Aramalar ve Favori Aramalar Sütunu */
+        .bottom-column {
+            padding: 20px;
+            border-radius: 16px;
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            backdrop-filter: blur(10px);
+            background: rgba(255, 255, 255, 0.85);
+            animation: slideUp 0.8s ease-out;
+            margin-bottom: 20px;
+        }
+
+        .dark-mode .bottom-column {
+            background: rgba(30, 30, 30, 0.85);
+            border-color: rgba(0, 0, 0, 0.4);
+        }
+
+        .bottom-column h2 {
+            font-size: 1.5rem;
+            margin-bottom: 20px;
+            color: #00ACEE;
+            text-transform: uppercase;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            letter-spacing: 0.5px;
+        }
+
+        .bottom-column h2:first-child {
+            margin-top: 0;
+        }
+
+        .bottom-column h2:not(:first-child) {
+            margin-top: 30px;
+        }
+
+        /* Favori ve Son Aramalar Listesi */
+        .bottom-column ul {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            max-height: 300px;
+            overflow-y: auto;
+            padding-right: 8px;
+            scrollbar-width: thin;
+            scrollbar-color: #00ACEE rgba(0, 0, 0, 0.1);
+        }
+
+        .bottom-column ul::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .bottom-column ul::-webkit-scrollbar-track {
+            background: rgba(0, 0, 0, 0.05);
+            border-radius: 10px;
+        }
+
+        .bottom-column ul::-webkit-scrollbar-thumb {
+            background-color: #00ACEE;
+            border-radius: 10px;
+            border: 2px solid rgba(0, 0, 0, 0);
+        }
+
+        .dark-mode .bottom-column ul::-webkit-scrollbar-thumb {
+            background-color: #7937e0;
+        }
+
+        .bottom-column li {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px;
+            margin-bottom: 10px;
+            border-radius: 12px;
+            background: linear-gradient(90deg, rgba(255,255,255,0.9), rgba(245,248,250,0.9));
+            transition: all 0.3s;
+            border-left: 4px solid transparent;
+            cursor: pointer;
+            animation: slideInRight 0.3s ease-out forwards;
+            position: relative;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        @keyframes slideInRight {
+            from { opacity: 0; transform: translateX(20px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+
+        @keyframes bounce {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-5px); }
+        }
+
+        .bottom-column li:hover {
+            transform: translateY(-3px);
+            border-left: 4px solid #00ACEE;
+            background: white;
+            box-shadow: 0 6px 20px rgba(0,0,0,0.1);
+        }
+
+        .dark-mode .bottom-column li {
+            background: linear-gradient(90deg, rgba(30,30,30,0.9), rgba(40,40,40,0.9));
+            border-color: #555;
+        }
+
+        .dark-mode .bottom-column li:hover {
+            background: #333;
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+        }
+
+        /* List Item İçeriği için Ek Düzenlemeler */
+        .bottom-column li > div:first-of-type {
+            flex: 1;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            padding-right: 10px;
+        }
+
+        /* Buton Grupları için Ek Stiller */
+        .bottom-column li > button {
+            flex-shrink: 0;
+        }
+
+        .star-button {
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 1.3rem;
+            color: #ccc;
+            transition: all 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+            padding: 5px;
+            margin-right: 5px;
+        }
+
+        .star-button:hover {
+            transform: scale(1.2);
+        }
+
+        .star-button.favorited {
+            color: #FFD700;
+            text-shadow: 0 0 10px rgba(255, 215, 0, 0.7);
+            animation: pulse-star 1.5s infinite;
+        }
+
+        .star-button.favorited:hover {
+            animation: none;
+            transform: scale(1.3);
+        }
+
+        @keyframes pulse-star {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.2); }
+            100% { transform: scale(1); }
+        }
+
+        .delete-button {
+            background: linear-gradient(135deg, #FF4D4D, #CC0000);
+            color: white;
+            padding: 6px 12px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            border: none;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+            transition: all 0.2s ease;
+        }
+
+        .delete-button:hover {
+            transform: scale(1.05);
+            box-shadow: 0 2px 8px rgba(255, 77, 77, 0.4);
+        }
+
+        .search-date {
+            font-size: 0.8rem;
+            color: #657786;
+            min-width: 120px;
+            text-align: right;
+        }
+
+        .dark-mode .search-date {
+            color: #8b98a5;
+        }
+
+        .clear-all {
+            width: 100%;
+            margin-top: 20px;
+            transition: all 0.3s ease;
+        }
+
+        .clear-all:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
+        }
+
+        /* QR Modal */
+        .qr-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 10000;
+        }
+
+        .qr-content {
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            text-align: center;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+        }
+
+        .qr-content h3 {
+            margin-bottom: 15px;
+            color: #00ACEE;
+        }
+
+        /* Toast Mesajları */
+        .toast {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 12px 24px;
+            border-radius: 8px;
+            color: white;
+            z-index: 1000;
+            animation: fadeIn 0.3s, fadeOut 0.3s 2.7s;
+        }
+        .toast-success { background: #4CAF50; }
+        .toast-error { background: #FF5252; }
+
+        @keyframes fadeOut {
+            from { opacity: 1; }
+            to { opacity: 0; }
+        }
+
+        /* Animasyonlar */
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
+
+        .pulse-animation {
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes float {
+            0% { transform: translateY(0px); }
+            50% { transform: translateY(-5px); }
+            100% { transform: translateY(0px); }
+        }
+
+        @keyframes slideUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* Floating Action Button */
+        .fab-button {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            width: 56px;
+            height: 56px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #00ACEE, #0066FF);
+            color: white;
+            border: none;
+            box-shadow: 0 6px 20px rgba(0, 172, 238, 0.3);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            z-index: 1000;
+            opacity: 0;
+            transform: translateY(20px);
+            transition: all 0.3s ease;
+        }
+
+        .fab-button.visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .fab-button:hover {
+            transform: translateY(-5px) scale(1.1);
+            box-shadow: 0 8px 25px rgba(0, 172, 238, 0.4);
+        }
+
+        /* Tooltip */
+        .tooltip {
+            position: relative;
+            display: inline-block;
+        }
+
+        .tooltip .tooltiptext {
+            visibility: hidden;
+            width: 200px;
+            background-color: #333;
+            color: #fff;
+            text-align: center;
+            border-radius: 6px;
+            padding: 8px;
+            position: absolute;
+            z-index: 1;
+            bottom: 125%;
+            left: 50%;
+            transform: translateX(-50%);
+            opacity: 0;
+            transition: opacity 0.3s;
+            font-size: 0.8rem;
+        }
+
+        .tooltip:hover .tooltiptext {
+            visibility: visible;
+            opacity: 1;
+        }
+
+        /* Loading Spinner */
+        .loading-spinner {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 9999;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .spinner {
+            width: 50px;
+            height: 50px;
+            border: 5px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top-color: #00ACEE;
+            animation: spin 1s ease-in-out infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Responsive Tasarım */
+        @media (max-width: 1024px) {
+            body {
+                flex-wrap: wrap;
+                padding: 15px;
+            }
+
+            .left-panel,
+            .right-panel {
+                width: 100%;
+                margin-bottom: 20px;
+            }
+
+            .main-content {
+                margin: 0;
+                padding: 20px;
+            }
+
+            .form-container h2 {
+                font-size: 2rem;
+                flex-direction: column;
+                gap: 8px;
+            }
+
+            .search-query-and-dates,
+            .search-filters,
+            .settings-row,
+            .form-buttons {
+                flex-wrap: wrap;
+            }
+
+            .search-query-and-dates .search-query,
+            .search-query-and-dates .date-range {
+                flex: 100%;
+            }
+
+            #map {
+                height: 350px;
+            }
+
+            .bottom-column li {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 10px;
+            }
+
+            .bottom-column li > div:first-of-type {
+                width: 100%;
+            }
+
+            .search-date {
+                text-align: left;
+                min-width: auto;
+            }
+
+            .bottom-column li > button {
+                align-self: flex-end;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .main-content {
+                padding: 15px;
+            }
+
+            .form-container h2 {
+                font-size: 1.8rem;
+            }
+
+            input[type="date"] {
+                width: 100%;
+            }
+
+            .stats-card {
+                min-width: 100%;
+            }
+
+            .search-filters button {
+                flex: 1 0 45%;
+                margin-bottom: 10px;
+            }
+
+            #map {
+                height: 300px;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .main-content {
+                padding: 10px;
+            }
+
+            .form-container h2 {
+                font-size: 1.5rem;
+            }
+
+            button {
+                padding: 10px 12px;
+                font-size: 0.8rem;
+            }
+
+            #map {
+                height: 250px;
+            }
+
+            .bottom-column h2 {
+                font-size: 1.2rem;
+            }
+
+            .bottom-column ul {
+                max-height: 200px;
+            }
+
+            .notes-section h3,
+            .followed-accounts-section h3 {
+                font-size: 1rem;
+            }
+        }
+
+        /* Yarıçap Seçim Grubu */
+        .radius-selection {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 5px;
+            margin-bottom: 5px; /* Alt boşluğu azalt */
+        }
+
+        #saveDefaultSettings {
+            margin-top: 5px; /* Üst boşluğu azalt */
+            width: 100%;
+            padding: 12px 16px;
+            font-size: 0.95rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            margin-bottom: 15px; /* Alt boşluğu artır */
+        }
+
+        /* Hakkında Sütunu */
+        .about-section {
+            margin-top: 10px;
+            padding: 15px; /* Daha küçük padding */
+            border-radius: 12px;
+            background: linear-gradient(135deg, rgba(240, 242, 245, 0.9), rgba(210, 230, 250, 0.9));
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            font-size: 0.85rem; /* Daha küçük yazı boyutu */
+            color: #566370;
+            line-height: 1.6; /* Daha sıkı satır aralığı */
+            text-align: justify;
+            border-left: 4px solid #00ACEE;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .about-section h3 {
+            margin: 0 0 10px 0; /* Daha küçük alt boşluk */
+            font-size: 1.2rem; /* Daha küçük başlık boyutu */
+            font-weight: bold;
+            color: #00ACEE;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            cursor: pointer;
+        }
+
+        .about-section p {
+            margin: 8px 0; /* Daha küçük paragraf boşluğu */
+        }
+
+        .dark-mode .about-section {
+            background: linear-gradient(135deg, rgba(30, 30, 30, 0.9), rgba(40, 40, 40, 0.9));
+            color: #e7e9ea;
+            border-left: 6px solid #7937e0;
+        }
+
+        .dark-mode .about-section::before {
+            background: radial-gradient(circle at top left, rgba(121, 55, 224, 0.1), transparent 70%);
+        }
+
+        .twitter-icon {
+            animation: blink 1s infinite;
+            color: #00ACEE;
+            font-size: 1.5rem;
+            text-shadow: 0 0 10px rgba(0, 172, 238, 0.8);
+        }
+
+        @keyframes blink {
+            0%, 100% {
+                opacity: 1;
+            }
+            50% {
+                opacity: 0.5;
+            }
+        }
+
+        /* Notlar için yeni stiller */
+        .notes-section {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 12px;
+            background: linear-gradient(135deg, rgba(255,255,255,0.9), rgba(245,248,250,0.9));
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            font-size: 0.9rem;
+            color: #566370;
+            line-height: 1.5;
+            transition: all 0.3s ease;
+        }
+
+        .dark-mode .notes-section {
+            background: linear-gradient(135deg, rgba(30,30,30,0.9), rgba(40,40,40,0.9));
+            color: #e7e9ea;
+        }
+
+        .notes-section h3 {
+            margin: 0 0 15px 0;
+            font-size: 1.2rem;
+            font-weight: bold;
+            color: #00ACEE;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .notes-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
+        .note-item {
+            padding: 10px;
+            margin-bottom: 10px;
+            border-radius: 8px;
+            background: rgba(255,255,255,0.7);
+            border-left: 3px solid #00ACEE;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .dark-mode .note-item {
+            background: rgba(30,30,30,0.7);
+        }
+
+        .note-text {
+            flex: 1;
+            word-break: break-word;
+        }
+
+        .note-actions {
+            display: flex;
+            gap: 5px;
+        }
+
+        .note-actions button {
+            padding: 5px 8px;
+            font-size: 0.8rem;
+            border-radius: 6px;
+        }
+
+        .add-note-btn {
+            width: 100%;
+            margin-top: 10px;
+        }
+
+        .note-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 10000;
+        }
+
+        .note-modal-content {
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            width: 90%;
+            max-width: 500px;
+        }
+
+        .dark-mode .note-modal-content {
+            background: #333;
+            color: #e7e9ea;
+        }
+
+        .note-modal textarea {
+            width: 100%;
+            min-height: 100px;
+            padding: 10px;
+            margin-bottom: 15px;
+            border-radius: 8px;
+            border: 1px solid #ddd;
+        }
+
+        .dark-mode .note-modal textarea {
+            background: #444;
+            color: #fff;
+            border-color: #555;
+        }
+
+        .note-modal-buttons {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+        }
+
+        /* Yeni eklenen filtre butonları için özel stiller */
+        .search-filters button[data-filter="news"] i {
+            color: #FF6347;
+        }
+        .search-filters button[data-filter="verified"] i {
+            color: #1DA1F2;
+        }
+        .search-filters button[data-filter="mentions"] i {
+            color: #FFD700;
+        }
+        .search-filters button[data-filter="from_account"] i {
+            color: #9370DB;
+        }
+        .search-filters button[data-filter="to_account"] i {
+            color: #32CD32;
+        }
+
+        /* Takip Edilen Hesaplar için Stil */
+        .followed-accounts-section {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 12px;
+            background: linear-gradient(135deg, rgba(255,255,255,0.9), rgba(245,248,250,0.9));
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            font-size: 0.9rem;
+            color: #566370;
+            line-height: 1.5;
+            transition: all 0.3s ease;
+        }
+
+        .dark-mode .followed-accounts-section {
+            background: linear-gradient(135deg, rgba(30,30,30,0.9), rgba(40,40,40,0.9));
+            color: #e7e9ea;
+        }
+
+        .followed-accounts-section h3 {
+            margin: 0 0 15px 0;
+            font-size: 1.2rem;
+            font-weight: bold;
+            color: #00ACEE;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .followed-accounts-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
+        .followed-accounts-list .note-item {
+            padding: 15px;
+            margin-bottom: 10px;
+            border-radius: 8px;
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.9), rgba(245, 248, 250, 0.9));
+            border-left: 4px solid #00ACEE;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            cursor: pointer;
+        }
+
+        .followed-accounts-list .note-item:hover {
+            transform: translateY(-3px);
+            background: white;
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.1);
+            border-left: 4px solid #7937e0;
+        }
+
+        .followed-accounts-list .note-text {
+            font-weight: bold;
+            font-size: 1rem;
+            color: #0F1419;
+            flex: 1;
+            word-break: break-word;
+        }
+
+        .followed-accounts-list .note-actions {
+            display: flex;
+            gap: 10px;
+        }
+
+        .followed-accounts-list .note-actions button {
+            padding: 8px 12px;
+            font-size: 0.85rem;
+            border-radius: 6px;
+            transition: all 0.3s ease;
+        }
+
+        .followed-accounts-list .note-actions button:hover {
+            transform: scale(1.1);
+        }
+
+        /* Karanlık Mod için Stil */
+        .dark-mode .followed-accounts-list .note-item {
+            background: linear-gradient(135deg, rgba(30, 30, 30, 0.9), rgba(40, 40, 40, 0.9));
+            border-left: 4px solid #444;
+            color: #e7e9ea;
+        }
+
+        .dark-mode .followed-accounts-list .note-item:hover {
+            background: #333;
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+            border-left: 4px solid #7937e0;
+        }
+
+        .dark-mode .followed-accounts-list .note-text {
+            color: #e7e9ea;
+        }
+
+        .followed-accounts-list .note-text {
+            flex: 1;
+            word-break: break-word;
+        }
+
+        .followed-accounts-list .note-actions {
+            display: flex;
+            gap: 5px;
+        }
+
+        .followed-accounts-list .note-actions button {
+            padding: 5px 8px;
+            font-size: 0.8rem;
+            border-radius: 6px;
+        }
+
+        .add-note-btn {
+            width: 100%;
+            margin-top: 10px;
+        }
+
+        /* Takip Edilen Hesaplar ve Notlar Başlıkları */
+        .followed-accounts-section h2,
+        .notes-section h2 {
+            font-size: 1.5rem;
+            margin-bottom: 20px;
+            color: #00ACEE;
+            text-transform: uppercase;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            letter-spacing: 0.5px;
+        }
+
+        .followed-accounts-section h2:first-child,
+        .notes-section h2:first-child {
+            margin-top: 0;
+        }
+
+        .followed-accounts-section h2:not(:first-child),
+        .notes-section h2:not(:first-child) {
+            margin-top: 30px;
+        }
+
+        /* Notlar Listesi */
+        .notes-list .note-item {
+            padding: 15px;
+            margin-bottom: 10px;
+            border-radius: 8px;
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.9), rgba(245, 248, 250, 0.9));
+            border-left: 4px solid #00ACEE;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            cursor: pointer;
+        }
+
+        .notes-list .note-item:hover {
+            transform: translateY(-3px);
+            background: white;
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.1);
+            border-left: 4px solid #7937e0;
+        }
+
+        .notes-list .note-text {
+            font-weight: bold;
+            font-size: 1rem;
+            color: #0F1419;
+            flex: 1;
+            word-break: break-word;
+        }
+
+        .notes-list .note-actions {
+            display: flex;
+            gap: 10px;
+        }
+
+        .notes-list .note-actions button {
+            padding: 8px 12px;
+            font-size: 0.85rem;
+            border-radius: 6px;
+            transition: all 0.3s ease;
+        }
+
+        .notes-list .note-actions button:hover {
+            transform: scale(1.1);
+        }
+
+        /* Karanlık Mod için Stil */
+        .dark-mode .notes-list .note-item {
+            background: linear-gradient(135deg, rgba(30, 30, 30, 0.9), rgba(40, 40, 40, 0.9));
+            border-left: 4px solid #444;
+            color: #e7e9ea;
+        }
+
+        .dark-mode .notes-list .note-item:hover {
+            background: #333;
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+            border-left: 4px solid #7937e0;
+        }
+
+        .dark-mode .notes-list .note-text {
+            color: #e7e9ea;
+        }
+
+        .search-filters-container {
+            border: 2px solid #e0e0e0;
+            border-radius: 12px;
+            padding: 15px;
+            background: #f9f9f9;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            margin-bottom: 25px;
+            margin-top: 0; /* Üst boşluğu sıfırla */
+        }
+
+        .dark-mode .search-filters-container {
+            background: #333;
+            border-color: #444;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        }
+
+        .dark-mode .search-filters-container:hover {
+            box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
+        }
+
+        .search-filters-title {
+            font-size: 1.2rem;
+            font-weight: bold;
+            color: #00ACEE;
+            margin: 0; /* Tüm margin değerlerini sıfırla */
+            margin-bottom: 15px; /* Alt boşluğu koru */
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            text-transform: uppercase;
+        }
+
+        #defaultSettingsInfo {
+            margin-bottom: 5px; /* Alt boşluğu azalt */
+            font-size: 0.9rem; /* Yazı boyutunu küçült */
+            line-height: 1.4; /* Satır yüksekliğini ayarla */
+        }
+
+        .search-filters button[data-filter="sensitive"] {
+            background-color: #FFCCCC;
+            border: 1px solid #FF0000;
+        }
+
+        .search-filters button[data-filter="sensitive"]:hover {
+            background-color: #FF9999;
+        }
+
+        .emoji-btn {
+            font-size: 1.5rem;
+            background: none;
+            border: none;
+            cursor: pointer;
+            margin: 5px;
+            transition: transform 0.2s ease;
+        }
+
+        .emoji-btn:hover {
+            transform: scale(1.2);
+        }
+
+        /* Arama Terimi Butonunu Genişlet */
+        .search-query input[type="text"] {
+            flex: 10; /* 10 birim genişlik */
+            max-width: 100%; /* Taşmayı önlemek için maksimum genişlik */
+        }
+
+        /* Tooltip stili */
+        .tooltip-container {
+            position: relative;
+            display: inline-block;
+        }
+
+        .tooltip-container .tooltip-text {
+            visibility: hidden;
+            width: max-content;
+            background-color: #333;
+            color: #fff;
+            text-align: center;
+            border-radius: 6px;
+            padding: 8px;
+            position: absolute;
+            z-index: 1;
+            bottom: 125%; /* Butonun üstünde görünecek */
+            left: 50%;
+            transform: translateX(-50%);
+            opacity: 0;
+            transition: opacity 0.3s;
+            font-size: 0.85rem;
+        }
+
+        .tooltip-container:hover .tooltip-text {
+            visibility: visible;
+            opacity: 1;
+        }
+
+        #defaultCity, #defaultRadius {
+            font-size: 0.9rem; /* Yazı boyutunu küçült */
+            font-weight: normal; /* Yazı kalınlığını azalt */
+        }
+
+        /* Bilgiler Modal Stili */
+        #guideModal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 10000;
+        }
+
+        #guideModal .qr-content {
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            text-align: center;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+            max-width: 500px;
+            width: 90%;
+        }
+
+        #emojiPicker {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(40px, 1fr));
+            gap: 10px;
+            padding: 15px;
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            max-height: 300px;
+            overflow-y: auto;
+            width: 300px;
+        }
+
+        .emoji-btn {
+            font-size: 1.5rem;
+            background: none;
+            border: none;
+            cursor: pointer;
+            transition: transform 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+        }
+
+        .emoji-btn:hover {
+            transform: scale(1.2);
+            background: rgba(0, 0, 0, 0.1);
+        }
+    </style>
+</head>
+<body>
+    <!-- Loading Spinner -->
+    <div class="loading-spinner" id="loadingSpinner">
+        <div class="spinner"></div>
+    </div>
+
+    <!-- Sol Panel (Ayarlar) -->
+    <div class="left-panel">
+        <!-- Ayarlar Başlığı -->
+        <div class="settings-header">
+            <h2><i class="ri-settings-3-line"></i> AYARLAR</h2>
+        </div>
+
+        <!-- Dark Mode Butonu -->
+        <button type="button" id="toggleDarkMode" class="secondary-btn"><i class="ri-moon-line"></i> DARK MODE</button>
+
+         <!-- IP ve Lokasyon Bilgisi Butonu -->
+         <button type="button" id="showIpInfo" class="info-btn">
+            <i class="ri-global-line"></i> İP & LOKASYON
+        </button>
+
+        <!-- Güncel Tarih ve Saat Butonu -->
+        <button type="button" id="showDateTime" class="info-btn">
+            <i class="ri-calendar-line"></i> TARİH & SAAT
+        </button>
+
+        <!-- Konumum Butonu -->
+        <button type="button" id="showMyLocation" class="info-btn">
+            <i class="ri-map-pin-line"></i> KONUMUM
+        </button>
+
+        <!-- Bilgiler Butonu -->
+        <button type="button" id="showGuide" class="info-btn">
+            <i class="ri-question-line"></i> BİLGİLER
+        </button>
+
+        <!-- Ayarlar Sütunu (Tek Sıra) -->
+        <div class="settings-row">
+            <div class="city-selection input-group" style="margin-bottom: 3px;">
+                <label for="city"><i class="ri-map-pin-line"></i> İL SEÇİN</label>
+                <select id="city" name="city" required>
+                    <option value="">BİR İL SEÇİN</option>
+                    <option value="37.0000,35.3213">ADANA</option>
+                    <option value="37.7641,38.2762">ADIYAMAN</option>
+                    <option value="38.7636,30.5406">AFYONKARAHİSAR</option>
+                    <option value="39.7191,43.0503">AĞRI</option>
+                    <option value="38.3687,34.0370">AKSARAY</option>
+                    <option value="40.6499,35.8353">AMASYA</option>
+                    <option value="39.9208,32.8541">ANKARA</option>
+                    <option value="36.8841,30.7056">ANTALYA</option>
+                    <option value="41.1105,42.7022">ARDAHAN</option>
+                    <option value="41.1828,41.8183">ARTVİN</option>
+                    <option value="37.8443,27.8458">AYDIN</option>
+                    <option value="39.6484,27.8826">BALIKESİR</option>
+                    <option value="41.6344,32.3374">BARTIN</option>
+                    <option value="37.8812,41.1351">BATMAN</option>
+                    <option value="40.2552,40.2249">BAYBURT</option>
+                    <option value="40.1426,29.9793">BİLECİK</option>
+                    <option value="38.8843,40.4962">BİNGÖL</option>
+                    <option value="38.4006,42.1098">BİTLİS</option>
+                    <option value="40.7325,31.6082">BOLU</option>
+                    <option value="37.7186,30.2833">BURDUR</option>
+                    <option value="40.1826,29.0669">BURSA</option>
+                    <option value="40.1553,26.4142">ÇANAKKALE</option>
+                    <option value="40.6002,33.6164">ÇANKIRI</option>
+                    <option value="40.5506,34.9556">ÇORUM</option>
+                    <option value="37.7765,29.0864">DENİZLİ</option>
+                    <option value="37.9144,40.2306">DİYARBAKIR</option>
+                    <option value="40.8399,31.1625">DÜZCE</option>
+                    <option value="41.6736,26.5586">EDİRNE</option>
+                    <option value="38.6810,39.2264">ELAZIĞ</option>
+                    <option value="39.7500,39.5000">ERZİNCAN</option>
+                    <option value="39.9000,41.2700">ERZURUM</option>
+                    <option value="39.7767,30.5206">ESKİŞEHİR</option>
+                    <option value="37.0662,37.3833">GAZİANTEP</option>
+                    <option value="40.9128,38.3895">GİRESUN</option>
+                    <option value="40.4603,39.4814">GÜMÜŞHANE</option>
+                    <option value="37.5833,43.7333">HAKKARİ</option>
+                    <option value="36.4018,36.3498">HATAY</option>
+                    <option value="39.9167,44.0333">IĞDIR</option>
+                    <option value="37.7648,30.5566">ISPARTA</option>
+                    <option value="41.0082,28.9784">İSTANBUL</option>
+                    <option value="38.4189,27.1287">İZMİR</option>
+                    <option value="37.5833,36.9333">KAHRAMANMARAŞ</option>
+                    <option value="41.2061,32.6204">KARABÜK</option>
+                    <option value="37.1819,33.2158">KARAMAN</option>
+                    <option value="40.6167,43.1000">KARS</option>
+                    <option value="41.3765,33.7765">KASTAMONU</option>
+                    <option value="38.7316,35.4787">KAYSERİ</option>
+                    <option value="39.8468,33.5153">KIRIKKALE</option>
+                    <option value="41.7333,27.2167">KIRKLARELİ</option>
+                    <option value="39.1425,34.1709">KIRŞEHİR</option>
+                    <option value="36.7164,37.1156">KİLİS</option>
+                    <option value="40.8533,29.8815">KOCAELİ</option>
+                    <option value="37.8667,32.4833">KONYA</option>
+                    <option value="39.4167,29.9833">KÜTAHYA</option>
+                    <option value="38.3554,38.3335">MALATYA</option>
+                    <option value="38.6191,27.4289">MANİSA</option>
+                    <option value="37.3122,40.7356">MARDİN</option>
+                    <option value="36.8000,34.6333">MERSİN</option>
+                    <option value="37.2153,28.3636">MUĞLA</option>
+                    <option value="38.7333,41.4911">MUŞ</option>
+                    <option value="38.6264,34.7139">NEVŞEHİR</option>
+                    <option value="37.9667,34.6833">NİĞDE</option>
+                    <option value="40.9833,37.8833">ORDU</option>
+                    <option value="37.0681,36.2616">OSMANİYE</option>
+                    <option value="41.0208,40.5219">RİZE</option>
+                    <option value="40.7833,30.4000">SAKARYA</option>
+                    <option value="41.2928,36.3314">SAMSUN</option>
+                    <option value="37.9333,41.9500">SİİRT</option>
+                    <option value="42.0267,35.1506">SİNOP</option>
+                    <option value="39.7500,37.0167">SİVAS</option>
+                    <option value="37.1583,38.7917">ŞANLIURFA</option>
+                    <option value="37.5167,42.4500">ŞIRNAK</option>
+                    <option value="40.9833,27.5167">TEKİRDAĞ</option>
+                    <option value="40.3167,36.5500">TOKAT</option>
+                    <option value="41.0015,39.7178">TRABZON</option>
+                    <option value="39.1000,39.5333">TUNCELİ</option>
+                    <option value="38.6823,29.4082">UŞAK</option>
+                    <option value="38.4942,43.3800">VAN</option>
+                    <option value="40.6500,29.2667">YALOVA</option>
+                    <option value="39.8200,34.8044">YOZGAT</option>
+                    <option value="41.4564,31.7987">ZONGULDAK</option>
+                </select>
+            </div>
+
+            <div class="radius-selection input-group">
+                <label for="radius"><i class="ri-ruler-line"></i> YARIÇAP (KM)</label>
+                <select id="radius" name="radius" required>
+                    <option value="">SEÇİN</option>
+                    <option value="25">25</option>
+                    <option value="50">50</option>
+                    <option value="75">75</option>
+                    <option value="100">100</option>
+                    <option value="125">125</option>
+                    <option value="150">150</option>
+                    <option value="175">175</option>
+                    <option value="200">200</option>
+                    <option value="250">250</option>
+                    <option value="300">300</option>
+                    <option value="350">350</option>
+                    <option value="400">400</option>
+                    <option value="450">450</option>
+                    <option value="500">500</option>
+                    <option value="600">600</option>
+                    <option value="700">700</option>
+                    <option value="800">800</option>
+                    <option value="900">900</option>
+                    <option value="1000">1000</option>
+                </select>
+            </div>
+            <button type="button" id="saveDefaultSettings" class="success-btn">
+                <i class="ri-save-line"></i> KAYDET
+            </button>
+
+            <div class="settings-info modern-info" id="defaultSettingsInfo">
+                <i class="ri-map-pin-2-fill modern-icon"></i>
+                <span id="defaultCity" class="modern-city">GAZİANTEP</span>
+                <span class="modern-separator">-</span>
+                <span id="defaultRadius" class="modern-radius">100 KM</span>
+            </div>
+        </div>
+
+        <!-- IP ve Lokasyon Bilgisi Modal -->
+        <div id="ipInfoModal" class="qr-modal" style="display: none;">
+            <div class="qr-content">
+                <h3>İP & LOKASYON BİLGİLERİ</h3>
+                <p><strong>IP:</strong> <span id="ipAddress">Yükleniyor...</span></p>
+                <p><strong>Port:</strong> <span id="port">Yükleniyor...</span></p>
+                <p><strong>Şehir:</strong> <span id="cityName">Yükleniyor...</span></p>
+                <p><strong>Koordinatlar:</strong> <span id="coordinates">Yükleniyor...</span></p>
+                <button class="danger-btn" id="closeIpInfoModal">Kapat</button>
+            </div>
+        </div>
+
+        <!-- Tarih ve Saat Modal -->
+        <div id="dateTimeModal" class="qr-modal" style="display: none;">
+            <div class="qr-content">
+                <h3>GÜNCEL TARİH & SAAT</h3>
+                <p><strong>Tarih:</strong> <span id="currentDate">Yükleniyor...</span></p>
+                <p><strong>Saat:</strong> <span id="currentTime">Yükleniyor...</span></p>
+                <button class="danger-btn" id="closeDateTimeModal">Kapat</button>
+            </div>
+        </div>
+        
+        <!-- Hakkında Sütunu -->
+        <div class="about-section">
+            <h3 id="aboutToggle" style="cursor: pointer;">
+                <i class="ri-information-line"></i>HAKKINDA
+                <i class="ri-arrow-down-s-line" id="aboutArrow" style="float: right;"></i>
+            </h3>
+            <div id="aboutContent" style="display: none;">
+                <p>
+                    Bu uygulama, Twitter üzerinde konumsal arama yapmanıza olanak sağlar. 
+                    Seçtiğiniz şehir ve yarıçap doğrultusunda aradıgınız paylaşımları bulabilirsiniz.
+                </p>
+                <p>
+                    Geliştirici: <strong>Mevlüt AKDAĞ</strong><br>
+                    Sürüm: <strong>27.07</strong>
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Ana İçerik -->
+    <div class="main-content">
+        <!-- Arama Formu -->
+        <div class="form-container">
+            <!-- Arama Başlığı -->
+            <h2>
+                <i class="ri-twitter-fill" style="color: #00ACEE; font-size: 2.5rem;"></i>
+                <span class="search-engine-text">X KONUMSAL ARAMA MOTORU</span>
+            </h2>
+
+            <!-- Arama Formu -->
+            <form id="searchForm">
+                <!-- Arama Terimi ve Tarih Aralığı -->
+                <div class="search-query-and-dates">
+                    <div class="search-query input-group">
+                        <label for="searchQuery"><i class="ri-search-line"></i> ARAMA TERİMİ</label>
+                        <input type="text" id="searchQuery" name="searchQuery" placeholder="Lütfen aramak isteginiz kelimeyi giriniz." required>
+                    </div>
+                    <div class="date-range">
+                        <div class="input-group">
+                            <label for="startDate"><i class="ri-calendar-line"></i> BAŞLANGIÇ TARİHİ</label>
+                            <input type="date" id="startDate" name="startDate" aria-label="Başlangıç tarihi">
+                        </div>
+                        <div class="input-group">
+                            <label for="endDate"><i class="ri-calendar-line"></i> BİTİŞ TARİHİ</label>
+                            <input type="date" id="endDate" name="endDate" aria-label="Bitiş tarihi">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Arama Filtreleri -->
+                <div class="search-filters-container">
+                    <h3 class="search-filters-title"><i class="ri-filter-line"></i> ARAMA FİLTRELERİ</h3>
+                    <div class="search-filters">
+                        <button type="button" data-filter="latest" style="color: #00ACEE;" aria-label="En son tweetleri ara"><i class="ri-time-fill"></i> EN SON</button>
+                        <button type="button" data-filter="hashtag" style="color: #1DA1F2;" aria-label="Hashtag ara"><i class="ri-hashtag"></i> HASHTAGLAR</button>
+                        <button type="button" data-filter="replies" style="color: #FFA500;" aria-label="Yorumları ara"><i class="ri-chat-3-fill"></i> YORUMLAR</button>
+                        <button type="button" data-filter="news" style="color: #FF6347;" aria-label="Haber tweetlerini ara"><i class="ri-newspaper-line"></i> HABERLER</button>
+                        <button type="button" data-filter="mentions" style="color: #FFD700;" aria-label="Bahsetmeleri ara"><i class="ri-at-line"></i> BAHSETMELER</button>
+                        <button type="button" data-filter="link" style="color: #FF4500;" aria-label="Link içeren tweetleri ara"><i class="ri-links-line"></i> LİNKLER</button>
+                        <button type="button" data-filter="images" style="color: #FF69B4;" aria-label="Resim içeren tweetleri ara"><i class="ri-image-line"></i> RESİMLER</button>
+                        <button type="button" data-filter="videos" style="color: #FF4500;" aria-label="Video içeren tweetleri ara"><i class="ri-video-line"></i> VİDEOLAR</button>
+                        <button type="button" id="attitudeButton" style="color: #FF69B4;" aria-label="Tutum ekle"><i class="ri-emotion-line"></i> EMOJİLER</button>
+                        <button type="button" data-filter="sensitive" style="color: #FF0000;" aria-label="Hassas içerikleri ara"><i class="ri-alert-line"></i> HASSAS İÇERİK</button>
+                        <button type="button" data-filter="verified" style="color: #025bff;" aria-label="Onaylanmış hesapları ara"><i class="ri-check-double-line"></i> ONAYLANMIŞ HESAP</button>
+                        <button type="button" data-filter="from_account" style="color: #9370DB;" aria-label="Hesaptan atılan tweetleri ara"><i class="ri-send-plane-line"></i> HESAPTAN ATILAN</button>
+                        <button type="button" data-filter="to_account" style="color: #32CD32;" aria-label="Hesaba atılan tweetleri ara"><i class="ri-inbox-archive-line"></i> HESABA ATILMIŞ</button>
+                    </div>
+                </div>
+
+                <!-- Emoji Seçim Kutusu -->
+                <div id="emojiPicker" style="display: none; position: absolute; background: white; border: 1px solid #ddd; border-radius: 8px; padding: 10px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1); z-index: 1000; max-height: 300px; overflow-y: auto; width: 300px; grid-template-columns: repeat(auto-fill, minmax(40px, 1fr)); gap: 10px;">
+                    <!-- Tüm emojiler -->
+                    <button class="emoji-btn">😊</button>
+                    <button class="emoji-btn">😢</button>
+                    <button class="emoji-btn">😡</button>
+                    <button class="emoji-btn">😂</button>
+                    <button class="emoji-btn">❤️</button>
+                    <button class="emoji-btn">😇</button>
+                    <button class="emoji-btn">🥳</button>
+                    <button class="emoji-btn">🤩</button>
+                    <button class="emoji-btn">🤔</button>
+                    <button class="emoji-btn">🤨</button>
+                    <button class="emoji-btn">😐</button>
+                    <button class="emoji-btn">😑</button>
+                    <button class="emoji-btn">😶</button>
+                    <button class="emoji-btn">🙄</button>
+                    <button class="emoji-btn">😏</button>
+                    <button class="emoji-btn">😣</button>
+                    <button class="emoji-btn">😥</button>
+                    <button class="emoji-btn">😮</button>
+                    <button class="emoji-btn">🤐</button>
+                    <button class="emoji-btn">😯</button>
+                    <button class="emoji-btn">😪</button>
+                    <button class="emoji-btn">😫</button>
+                    <button class="emoji-btn">🥱</button>
+                    <button class="emoji-btn">😴</button>
+                    <button class="emoji-btn">😌</button>
+                    <button class="emoji-btn">😛</button>
+                    <button class="emoji-btn">😜</button>
+                    <button class="emoji-btn">😝</button>
+                    <button class="emoji-btn">🤤</button>
+                    <button class="emoji-btn">😒</button>
+                    <button class="emoji-btn">😓</button>
+                    <button class="emoji-btn">😔</button>
+                    <button class="emoji-btn">😕</button>
+                    <button class="emoji-btn">🙃</button>
+                    <button class="emoji-btn">🤑</button>
+                    <button class="emoji-btn">😲</button>
+                    <button class="emoji-btn">☹️</button>
+                    <button class="emoji-btn">🙁</button>
+                    <button class="emoji-btn">😖</button>
+                    <button class="emoji-btn">😞</button>
+                    <button class="emoji-btn">😟</button>
+                    <button class="emoji-btn">😤</button>
+                    <button class="emoji-btn">😢</button>
+                    <button class="emoji-btn">😭</button>
+                    <button class="emoji-btn">😦</button>
+                    <button class="emoji-btn">😧</button>
+                    <button class="emoji-btn">😨</button>
+                    <button class="emoji-btn">😩</button>
+                    <button class="emoji-btn">🤯</button>
+                    <button class="emoji-btn">😬</button>
+                    <button class="emoji-btn">😰</button>
+                    <button class="emoji-btn">😱</button>
+                    <button class="emoji-btn">🥵</button>
+                    <button class="emoji-btn">🥶</button>
+                    <button class="emoji-btn">😳</button>
+                    <button class="emoji-btn">🤪</button>
+                    <button class="emoji-btn">😵</button>
+                    <button class="emoji-btn">😡</button>
+                    <button class="emoji-btn">😠</button>
+                    <button class="emoji-btn">🤬</button>
+                    <button class="emoji-btn">😷</button>
+                    <button class="emoji-btn">🤒</button>
+                    <button class="emoji-btn">🤕</button>
+                    <button class="emoji-btn">🤢</button>
+                    <button class="emoji-btn">🤮</button>
+                    <button class="emoji-btn">🤧</button>
+                    <button class="emoji-btn">😇</button>
+                    <button class="emoji-btn">🥳</button>
+                </div>
+
+                <!-- Arama Butonları -->
+                <div class="form-buttons">
+                    <button type="button" id="resetSearch" class="danger-btn" aria-label="Aramayı sıfırla"><i class="ri-refresh-line"></i> ARAMA SIFIRLA</button>
+                    <button type="button" id="copySearchLink" class="secondary-btn" aria-label="Arama bağlantısını kopyala"><i class="ri-links-line"></i> URL KOPYALA</button>
+                    <button type="button" id="generateQR" class="success-btn" aria-label="QR kodu oluştur"><i class="ri-qr-code-line"></i> QR KOD</button>
+                    <button type="button" id="last24HoursBtn" class="info-btn" aria-label="Son 24 saat"><i class="ri-time-line"></i> SON 24 SAAT</button>
+                    <button type="submit" class="primary-btn pulse-animation" aria-label="Arama yap"><i class="ri-search-line"></i> ARAMA YAP</button>
+                    <button type="button" id="enableMapSelect" class="info-btn" style="width:auto;"><i class="ri-map-pin-add-line"></i> HARİTADAN KONUM SEÇ</button>
+                    <button type="button" id="cancelMapSelect" class="danger-btn" style="width:auto; display:none;"><i class="ri-close-line"></i> İPTAL ET</button>
+                    <button id="selectedMapLocation" style="margin-left:10px; color:#ff0015; font-weight:bold; display:none;">SEÇİLEN KONUM:<span id="selectedLatLng"></span><span id="selectedCountry" style="margin-left:8px; color:#0066FF;"></span></button>
+                </div>
+                <!-- İstatistik Kartları -->
+            <div class="stats-container">
+                <div class="stats-card">
+                    <i class="ri-twitter-fill" style="color: #00ACEE;"></i>
+                    <div>
+                        <span class="count">0</span>
+                        <span>TWEET BULUNDU</span>
+                    </div>
+                </div>
+                <div class="stats-card">
+                    <i class="ri-user-3-fill" style="color: #7937e0;"></i>
+                    <div>
+                        <span class="count">0</span>
+                        <span>KULLANICI SAYISI</span>
+                    </div>
+                </div>
+                <div class="stats-card">
+                    <i class="ri-map-pin-2-fill" style="color: #FF4500;"></i>
+                    <div>
+                        <span class="count" id="statsRadius">100 KM</span>
+                        <span id="statsCity" style="font-size:0.95rem; color:#7937e0; font-weight:600; margin-top:2px; display:block;">GAZİANTEP</span>
+                        <span>ARAMA YARIÇAPI</span>
+                    </div>
+                </div>
+            </div>
+                <!-- Harita -->
+                <div id="map" aria-label="Arama bölgesini gösteren harita"></div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Sağ Panel (Son Aramalar ve Favoriler) -->
+    <div class="right-panel">
+        <div class="bottom-column">
+            <!-- Favori Aramalar -->
+            <h2><i class="ri-star-line"></i> FAVORİ ARAMALAR</h2>
+            <ul id="favoriteSearchesList">
+                <li>
+                    <div style="width:100%; text-align:center; padding:15px; color:#657786;">FAVORİ ARAMA YOK</div>
+                </li>
+            </ul>
+            <button class="clear-all danger-btn" id="clearAllFavorites" aria-label="Tüm favorileri temizle"><i class="ri-delete-bin-line"></i> FAVORİ ARAMALARI TEMİZLE</button>
+
+            <!-- Son Aramalar -->
+            <h2><i class="ri-history-line"></i> SON ARAMALAR</h2>
+            <ul id="recentSearchesList">
+                <li>
+                    <div style="width:100%; text-align:center; padding:15px; color:#657786;">ARAMA GEÇMİŞİ YOK</div>
+                </li>
+            </ul>
+            <button class="clear-all danger-btn" id="clearAllRecent" aria-label="Tüm son aramaları temizle"><i class="ri-delete-bin-line"></i> SON ARAMALARI TEMİZLE</button>
+        </div>
+
+        <!-- Takip Edilen Hesaplar Bölümü -->
+        <div class="followed-accounts-section notes-section">
+            <h2><i class="ri-user-follow-line"></i> TAKİP EDİLENLER</h2>
+            <ul class="notes-list followed-accounts-list" id="followedAccountsList">
+                <!-- Takip edilen hesaplar buraya eklenecek -->
+            </ul>
+            <button class="add-note-btn primary-btn" id="addAccountBtn"><i class="ri-add-line"></i> HESAP/URL EKLE</button>
+        </div>
+
+        <!-- Notlar Bölümü -->
+        <div class="notes-section">
+            <h2><i class="ri-sticky-note-line"></i> NOTLAR</h2>
+            <ul class="notes-list" id="notesList">
+                <!-- Notlar buraya eklenecek -->
+            </ul>
+            <button class="add-note-btn primary-btn" id="addNoteBtn"><i class="ri-add-line"></i> NOT EKLE</button>
+        </div>
+    </div>
+
+    <!-- Floating Action Button -->
+    <button class="fab-button" id="scrollToTop" aria-label="Yukarı çık">
+        <i class="ri-arrow-up-line"></i>
+    </button>
+
+    <!-- Confetti Canvas (Gizli) -->
+    <canvas id="confetti-canvas" style="position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:9999;display:none;"></canvas>
+
+    <!-- Not Ekle/Düzenle Modal -->
+    <div id="noteModal" class="note-modal" style="display: none;">
+        <div class="note-modal-content">
+            <h3 id="noteModalTitle">YENİ NOT EKLE</h3>
+            <textarea id="noteText" placeholder="Notunuzu buraya yazın..."></textarea>
+            <div class="note-modal-buttons">
+                <button class="danger-btn" id="cancelNoteBtn">İPTAL</button>
+                <button class="success-btn" id="saveNoteBtn">KAYDET</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Takip Edilen Hesaplar Modal -->
+    <div id="accountModal" class="note-modal" style="display: none;">
+        <div class="note-modal-content">
+            <h3 id="accountModalTitle">YENİ HESAP EKLE</h3>
+            <input type="text" id="accountUrl" placeholder="Hesap URL'si (ör. https://twitter.com/kullanici)" required>
+            <input type="text" id="accountDisplayName" placeholder="Görünen Ad (isteğe bağlı)">
+            <div class="note-modal-buttons">
+                <button class="danger-btn" id="cancelAccountBtn">İPTAL</button>
+                <button class="success-btn" id="saveAccountBtn">KAYDET</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bilgiler Modal -->
+    <div id="guideModal" class="qr-modal" style="display: none;">
+        <div class="qr-content">
+            <h3>BİLGİLER</h3>
+            <p>
+                Bu uygulama, Twitter üzerinde konumsal arama yapmanıza olanak sağlar. Aşağıda tüm özelliklerin açıklamaları verilmiştir
+            </p>
+            <ul style="text-align: left;">
+                <li><strong>Dark Mode:</strong> Uygulamanın temasını karanlık moda geçirir.</li>
+                <li><strong>IP & Lokasyon:</strong> IP adresinizi ve mevcut konum bilgilerinizi gösterir.</li>
+                <li><strong>Tarih & Saat:</strong> Güncel tarih ve saat bilgisini gösterir.</li>
+                <li><strong>Konumum:</strong> Mevcut konumunuzu haritada gösterir.</li>
+                <li><strong>Şehir ve Yarıçap:</strong> Arama yapılacak şehir ve yarıçapı seçmenizi sağlar.</li>
+                <li><strong>Arama Terimi:</strong> Aramak istediğiniz kelime veya ifadeyi girin.</li>
+                <li><strong>Arama Filtreleri:</strong> Aramanızı popüler, medya, hashtag gibi kategorilere göre filtreler.</li>
+                <li><strong>QR Kod:</strong> Arama bağlantısını QR kod olarak oluşturur.</li>
+                <li><strong>Son 24 Saat:</strong> Son 24 saat içinde yapılan paylaşımları arar.</li>
+                <li><strong>Son Aramalar:</strong> Daha önce yaptığınız aramaları görüntüleyin.</li>
+                <li><strong>Favori Aramalar:</strong> Sık kullandığınız aramaları favorilere ekleyin.</li>
+                <li><strong>Not Alma:</strong> Önemli bilgileri kaydedin ve düzenleyin.</li>
+                <li><strong>Takip Edilenler:</strong> Önemli hesapları takip edin ve listeleyin.</li>
+                <li><strong>Hashtag:</strong> Belirli bir hashtag içeren tweetleri arar.</li>
+                <li><strong>Yorumlar:</strong> Yorum içeren tweetleri gösterir.</li>
+                <li><strong>Haberler:</strong> Haber içeren tweetleri gösterir.</li>
+                <li><strong>Bahsetmeler:</strong> Belirli bir kullanıcıyı etiketleyen tweetleri arar.</li>
+                <li><strong>Linkler:</strong> Link içeren tweetleri gösterir.</li>
+                <li><strong>Resimler:</strong> Resim içeren tweetleri gösterir.</li>
+                <li><strong>Videolar:</strong> Video içeren tweetleri gösterir.</li>
+                <li><strong>Hassas:</strong> Hassas içerik içeren tweetleri gösterir.</li>
+                <li><strong>Onaylanmış:</strong> Onaylanmış hesaplardan gelen tweetleri gösterir.</li>
+                <li><strong>Hesaptan Atılan:</strong> Belirli bir hesaptan atılan tweetleri arar.</li>
+                <li><strong>Hesaba Atılmış:</strong> Belirli bir hesaba atılan tweetleri arar.</li>
+            </ul>
+            <button class="danger-btn" id="closeGuideModal">Kapat</button>
+        </div>
+    </div>
+
+    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+    <script>
+        // Dark Mode
+        document.getElementById('toggleDarkMode').addEventListener('click', function() {
+            document.body.classList.toggle('dark-mode');
+            this.innerHTML = document.body.classList.contains('dark-mode') ? 
+                '<i class="ri-sun-line"></i> AYDINLIK MOD' : '<i class="ri-moon-line"></i> KARANLIK MOD';
+            localStorage.setItem('darkMode', document.body.classList.contains('dark-mode'));
+        });
+
+        // Sistem temasını kontrol et ve localStorage'dan yükle
+        function checkDarkMode() {
+            const darkModePref = localStorage.getItem('darkMode');
+            const systemPrefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+            
+            if (darkModePref === 'true' || (darkModePref === null && systemPrefersDark)) {
+                document.body.classList.add('dark-mode');
+                document.getElementById('toggleDarkMode').innerHTML = '<i class="ri-sun-line"></i> AYDINLIK MOD';
+            } else {
+                document.getElementById('toggleDarkMode').innerHTML = '<i class="ri-moon-line"></i> KARANLIK MOD';
+            }
+        }
+
+        // Harita Entegrasyonu
+        const map = L.map('map').setView([37.0659, 37.3781], 10);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        }).addTo(map);
+        
+        let circle = L.circle([37.0659, 37.3781], { 
+            radius: 100 * 1000,
+            color: '#FF4500',
+            fillColor: '#7937e0',
+            fillOpacity: 0.3,
+            weight: 2,
+            dashArray: '5, 5',
+            className: 'pulse-circle'
+        }).addTo(map);
+
+        const bounds = circle.getBounds();
+        map.fitBounds(bounds, { padding: [50, 50] });
+
+        // Twitter simgesi için özel bir Leaflet simgesi oluştur
+        const twitterIcon = L.divIcon({
+            className: 'twitter-icon',
+            html: '<i class="ri-twitter-fill"></i>',
+            iconSize: [30, 30],
+            iconAnchor: [15, 15]
+        });
+
+        // Twitter logolarını tutacak bir dizi
+        let twitterMarkers = [];
+
+        // Rastgele bir konum oluştur ve yarıçap içinde olup olmadığını kontrol et
+        function getRandomLatLng(center, radius) {
+            const y0 = center.lat;
+            const x0 = center.lng;
+            const rd = radius / 111300; // Yarıçapı metre cinsinden derecelere çevir
+
+            let newLat, newLng;
+            let distance;
+
+            do {
+                const u = Math.random();
+                const v = Math.random();
+                const w = rd * Math.sqrt(u);
+                const t = 2 * Math.PI * v;
+                const x = w * Math.cos(t);
+                const y = w * Math.sin(t);
+
+                newLat = y + y0;
+                newLng = x + x0;
+
+                // İki nokta arasındaki mesafeyi hesapla
+                distance = haversineDistance([y0, x0], [newLat, newLng]);
+            } while (distance > radius); // Yarıçap sınırını aşarsa tekrar hesapla
+
+            return [newLat, newLng];
+        }
+
+        // Haversine formülü ile iki nokta arasındaki mesafeyi hesapla
+        function haversineDistance([lat1, lon1], [lat2, lon2]) {
+            const R = 6371e3; // Dünya yarıçapı (metre)
+            const φ1 = (lat1 * Math.PI) / 180;
+            const φ2 = (lat2 * Math.PI) / 180;
+            const Δφ = ((lat2 - lat1) * Math.PI) / 180;
+            const Δλ = ((lon1 - lon1) * Math.PI) / 180;
+
+            const a =
+                Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
+                Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+            return R * c; // Mesafe (metre)
+        }
+
+        // Twitter logolarını haritaya ekle
+        function addTwitterLogos(center, radius) {
+            // Önceki logoları kaldır
+            twitterMarkers.forEach(marker => map.removeLayer(marker));
+            twitterMarkers = [];
+
+            // Yeni logoları ekle
+            for (let i = 0; i < 10; i++) { // 10 adet logo
+                const [lat, lng] = getRandomLatLng(center, radius * 1000); // Yarıçapı metreye çevir
+                const marker = L.marker([lat, lng], { icon: twitterIcon }).addTo(map);
+                twitterMarkers.push(marker);
+            }
+        }
+
+        // Twitter logolarını sürekli hareket ettir
+        let animationInterval; // Animasyon için global bir değişken
+
+        function animateTwitterLogos(center, radius) {
+            // Önceki animasyonu durdur
+            if (animationInterval) {
+                clearInterval(animationInterval);
+                animationInterval = null;
+            }
+
+            // Yeni animasyonu başlat
+            animationInterval = setInterval(() => {
+                twitterMarkers.forEach(marker => {
+                    const [lat, lng] = getRandomLatLng(center, radius * 1000);
+                    marker.setLatLng([lat, lng]);
+                });
+            }, 1000); // Her 5 saniyede bir yer değiştir
+        }
+
+        // Harita yakınlaştırma seviyesine göre logo sayısını ayarla
+        map.on('zoomend', function () {
+            const zoomLevel = map.getZoom(); // Mevcut zoom seviyesini al
+            const baseLogoCount = 100; // Minimum logo sayısı
+            const maxLogoCount = 1000000; // Maksimum logo sayısı
+
+            // Zoom seviyesine göre logo sayısını hesapla
+            const logoCount = Math.min(maxLogoCount, baseLogoCount * Math.pow(2, zoomLevel - 10));
+
+            // Eski logoları kaldır
+            twitterMarkers.forEach(marker => map.removeLayer(marker));
+            twitterMarkers = [];
+
+            // Elle seçim varsa logoları elle seçilen konuma göre ekle
+            if (manualLocation && manualCircle) {
+                for (let i = 0; i < logoCount; i++) {
+                    const [lat, lng] = getRandomLatLng(manualLocation, manualCircle.getRadius());
+                    const marker = L.marker([lat, lng], { icon: twitterIcon }).addTo(map);
+                    twitterMarkers.push(marker);
+                }
+            } else {
+                // Normalde şehir/yarıçap ile ekle
+                for (let i = 0; i < logoCount; i++) {
+                    const [lat, lng] = getRandomLatLng(circle.getLatLng(), circle.getRadius());
+                    const marker = L.marker([lat, lng], { icon: twitterIcon }).addTo(map);
+                    twitterMarkers.push(marker);
+                }
+            }
+        });
+
+        // Yarıçap veya şehir değiştiğinde logoları güncelle
+        document.getElementById('city').addEventListener('change', function () {
+            const selectedCity = this.value;
+            if (selectedCity) {
+                const [lat, lng] = selectedCity.split(',').map(Number);
+                const radius = document.getElementById('radius').value || 100;
+
+                // Eski logoları kaldır
+                twitterMarkers.forEach(marker => map.removeLayer(marker));
+                twitterMarkers = [];
+
+                // Yeni logoları ekle ve animasyonu başlat
+                addTwitterLogos({ lat, lng }, radius);
+                animateTwitterLogos({ lat, lng }, radius);
+            }
+        });
+
+        document.getElementById('radius').addEventListener('change', function () {
+            const cityCoordinates = document.getElementById('city').value;
+            if (cityCoordinates) {
+                const [lat, lng] = cityCoordinates.split(',').map(Number);
+                const radius = this.value || 100;
+
+                // Eski logoları kaldır
+                twitterMarkers.forEach(marker => map.removeLayer(marker));
+                twitterMarkers = [];
+
+                // Yeni logoları ekle ve animasyonu başlat
+                addTwitterLogos({ lat, lng }, radius);
+                animateTwitterLogos({ lat, lng }, radius);
+            }
+        });
+
+        // Sayfa yüklendiğinde varsayılan logoları ekle
+        window.addEventListener('load', function () {
+            const [lat, lng] = defaultSettings.city.split(',').map(Number);
+            const radius = defaultSettings.radius || 100;
+            addTwitterLogos({ lat, lng }, radius);
+            animateTwitterLogos({ lat, lng }, radius);
+        });
+
+        // Varsayılan Ayarları Yükle
+        function loadDefaultSettings() {
+            try {
+                const settings = localStorage.getItem('defaultSettings');
+                return settings ? JSON.parse(settings) : { city: "37.0659,37.3781", radius: "100" };
+            } catch (e) {
+                console.error('Ayarlar yüklenirken hata oluştu:', e);
+                return { city: "37.0659,37.3781", radius: "100" };
+            }
+        }
+
+        const defaultSettings = loadDefaultSettings();
+        document.getElementById('city').value = defaultSettings.city;
+        document.getElementById('radius').value = defaultSettings.radius;
+
+        // Varsayılan Ayarları Güncelle
+        function updateDefaultSettingsInfo() {
+            const settings = JSON.parse(localStorage.getItem('defaultSettings')) || { city: "37.0659,37.3781", radius: "100" };
+            const cityOption = document.querySelector(`#city option[value="${settings.city}"]`);
+            const defaultCity = cityOption ? cityOption.text : "GAZİANTEP";
+            const defaultRadius = settings.radius || "100";
+
+            document.getElementById('defaultCity').textContent = defaultCity;
+            document.getElementById('defaultRadius').textContent = `${defaultRadius} KM`;
+
+            document.getElementById('statsRadius').textContent = `${defaultRadius} KM`;
+            document.getElementById('statsCity').textContent = defaultCity;
+        }
+
+        // İl Seçildiğinde Haritayı Güncelle
+        function updateMap(lat, lng, radius) {
+            map.setView([lat, lng], 8);
+
+            if (circle && map.hasLayer(circle)) map.removeLayer(circle);
+            circle = L.circle([lat, lng], { 
+                radius: radius * 1000,
+                color: '#FF4500',
+                fillColor: '#7937e0',
+                fillOpacity: 0.3,
+                weight: 2,
+                dashArray: '5, 5',
+                className: 'pulse-circle'
+            }).addTo(map);
+
+            const bounds = circle.getBounds();
+            map.fitBounds(bounds, { padding: [50, 50] });
+
+            const cityOption = document.querySelector(`#city option[value="${lat},${lng}"]`);
+            const cityName = cityOption ? cityOption.text : "SEÇİLİ KONUM";
+            document.getElementById('statsRadius').textContent = `${radius} KM`;
+            document.getElementById('statsCity').textContent = cityName;
+            updateStats(radius);
+        }
+
+        document.getElementById('city').addEventListener('change', function() {
+            const selectedCity = this.value;
+            if (selectedCity) {
+                const [lat, lng] = selectedCity.split(',').map(Number);
+                const radius = document.getElementById('radius').value || 100;
+                updateMap(lat, lng, radius);
+            }
+        });
+
+        // Yarıçap Değiştiğinde Haritayı Güncelle
+        document.getElementById('radius').addEventListener('change', function() {
+            const cityCoordinates = document.getElementById('city').value;
+            if (cityCoordinates) {
+                const [lat, lng] = cityCoordinates.split(',').map(Number);
+                const radius = this.value || 100;
+                updateMap(lat, lng, radius);
+            }
+        });
+
+        // localStorage kullanılabilir mi kontrolü
+        function isLocalStorageAvailable() {
+            try {
+                localStorage.setItem('storageTest', 'test');
+                if (localStorage.getItem('storageTest') !== 'test') {
+                    throw new Error('localStorage çalışmıyor');
+                }
+                localStorage.removeItem('storageTest');
+                return true;
+            } catch (e) {
+                console.error('localStorage hatası:', e);
+                return false;
+            }
+        }
+
+        // Hata mesajlarını gösteren yardımcı fonksiyon
+        function showToast(message, type) {
+            const toast = document.createElement('div');
+            toast.className = `toast toast-${type}`;
+            toast.textContent = message;
+            document.body.appendChild(toast);
+            setTimeout(() => toast.remove(), 3000);
+        }
+
+        // Sayfa yüklendiğinde localStorage kontrolü
+        window.addEventListener('load', function() {
+            if (!isLocalStorageAvailable()) {
+                showToast('Tarayıcı depolama erişimi engellendi', 'error');
+            }
+        });
+
+        // Varsayılan Ayarları Kaydet
+        document.getElementById('saveDefaultSettings').addEventListener('click', function () {
+            const city = document.getElementById('city').value;
+            const radius = document.getElementById('radius').value;
+
+            if (!city || !radius) {
+                showToast('Lütfen şehir ve yarıçap seçin', 'error');
+                return;
+            }
+
+            try {
+                if (!isLocalStorageAvailable()) {
+                    throw new Error('Tarayıcınız localStorage\'ı desteklemiyor veya engellendi.');
+                }
+
+                // Ayarları kaydet
+                const settings = { city, radius };
+                localStorage.setItem('defaultSettings', JSON.stringify(settings));
+
+                // Varsayılan ayarları güncelle
+                updateDefaultSettingsInfo();
+
+                // Başarı mesajı
+                showToast('Varsayılan ayarlar kaydedildi!', 'success');
+
+                const btn = this;
+                btn.innerHTML = '<i class="ri-check-line"></i> KAYDEDİLDİ';
+                btn.classList.add('pulse-animation');
+                setTimeout(() => {
+                    btn.innerHTML = '<i class="ri-save-line"></i> KAYDET';
+                    btn.classList.remove('pulse-animation');
+                }, 2000);
+
+            } catch (e) {
+                console.error('Ayarlar kaydedilirken hata oluştu:', e);
+                showToast('Ayarlar kaydedilemedi: ' + e.message, 'error');
+            }
+        });
+
+        // Arama Sıfırla Butonu İşlevini Güncelleyin
+        document.getElementById('resetSearch').addEventListener('click', function () {
+            // Form alanlarını sıfırla
+            document.getElementById('searchQuery').value = '';
+            document.getElementById('startDate').value = '';
+            document.getElementById('endDate').value = '';
+            document.getElementById('city').value = defaultSettings.city || "37.0659,37.3781";
+            document.getElementById('radius').value = defaultSettings.radius || 100;
+
+            // Varsayılan şehir ve yarıçap bilgilerini al
+            const [lat, lng] = (defaultSettings.city || "37.0659,37.3781").split(',').map(Number);
+            const radius = defaultSettings.radius || 100;
+
+            // Haritayı güncelle
+            updateMap(lat, lng, radius);
+
+            // Twitter ikonlarını güncelle
+            twitterMarkers.forEach(marker => map.removeLayer(marker));
+            twitterMarkers = [];
+            addTwitterLogos({ lat, lng }, radius);
+            animateTwitterLogos({ lat, lng }, radius);
+
+            // Buton görünümünü güncelle
+            const btn = this;
+            btn.innerHTML = '<i class="ri-check-line"></i> SIFIRLANDI';
+            setTimeout(() => {
+                btn.innerHTML = '<i class="ri-refresh-line"></i> ARAMA SIFIRLA';
+            }, 2000);
+        });
+
+        // Arama Filtreleri
+        const filterParams = {
+            latest: "&src=recent_search_click&f=live",
+            hashtag: "&src=recent_search_click&f=hashtag",
+            replies: "&src=recent_search_click&filter=replies",
+            // Yeni eklenen filtreler
+            news: "&src=recent_search_click&f=news",
+            verified: "&src=recent_search_click&f=verified",
+            mentions: "&src=recent_search_click&filter=mentions",
+            from_account: "&src=recent_search_click&filter=from_account",
+            to_account: "&src=recent_search_click&filter=to_account",
+            link: "&src=recent_search_click&filter=links" // Yeni eklenen "Link" filtresi
+        };
+
+        // Filtre butonlarına tıklama olayını dinleyin
+        const filterButtons = document.querySelectorAll('.search-filters button');
+        filterButtons.forEach(button => {
+            button.addEventListener('click', function () {
+                filterButtons.forEach(btn => btn.classList.remove('active'));
+                this.classList.add('active');
+                selectedFilter = this.getAttribute('data-filter');
+                console.log('Selected Filter:', selectedFilter); // Konsola yazdır
+            });
+        });
+
+        // URL oluşturma fonksiyonu
+        function generateSpecialTwitterUrl() {
+            let query = document.getElementById('searchQuery').value.trim();
+            const cityCoordinates = document.getElementById('city').value;
+            const radius = document.getElementById('radius').value;
+
+            if (!query || !cityCoordinates || !radius) {
+                showToast('Lütfen arama terimi, şehir ve yarıçap girin', 'error');
+                return null;
+            }
+
+            let twitterSearchUrl = `https://twitter.com/search?q=${encodeURIComponent(query)} geocode:${cityCoordinates},${radius}KM`;
+
+            // Filtreye göre URL'yi oluştur
+            if (selectedFilter && selectedFilter !== 'default') {
+                switch (selectedFilter) {
+                    case 'hashtag':
+                        twitterSearchUrl += "&src=recent_search_click&f=hashtag";
+                        break;
+                    case 'replies':
+                        twitterSearchUrl += "&src=recent_search_click&filter=replies";
+                        break;
+                    case 'news':
+                        twitterSearchUrl += "&src=recent_search_click&f=news";
+                        break;
+                    case 'verified':
+                        twitterSearchUrl += "&src=recent_search_click&f=verified";
+                        break;
+                    default:
+                        twitterSearchUrl += "&f=live"; // Varsayılan olarak &f=live
+                        break;
+                }
+            } else {
+                twitterSearchUrl += "&f=live"; // Varsayılan olarak &f=live
+            }
+
+            console.log('Generated Twitter URL:', twitterSearchUrl);
+            return twitterSearchUrl;
+        }
+
+        // Diğer filtreler için mevcut URL oluşturma fonksiyonu
+        function generateTwitterUrl() {
+            let query = document.getElementById('searchQuery').value.trim();
+            const cityCoordinates = document.getElementById('city').value;
+            const radius = document.getElementById('radius').value;
+            const startDate = document.getElementById('startDate').value;
+            const endDate = document.getElementById('endDate').value;
+
+            // Elle konum seçildiyse, onu kullan
+            let geo = '';
+            if (manualLocation) {
+                geo = `${manualLocation.lat.toFixed(5)},${manualLocation.lng.toFixed(5)}`;
+            } else {
+                geo = cityCoordinates;
+            }
+
+            if (!query || !geo || !radius) {
+                showToast('Lütfen arama terimi, şehir veya konum ve yarıçap girin', 'error');
+                return null;
+            }
+
+            let twitterSearchUrl = "https://twitter.com/search?q=";
+
+            // Diğer filtreler için işlem yap
+            if (selectedFilter === 'link') {
+                query += " filter:links";
+            } else if (selectedFilter === 'mentions') {
+                query = `@${query}`;
+            } else if (selectedFilter === 'from_account') {
+                query = `from:@${query}`;
+            } else if (selectedFilter === 'to_account') {
+                query = `to:@${query}`;
+            } else if (selectedFilter === 'hashtag') {
+                query = `#${query}`;
+            } else if (selectedFilter === 'replies') {
+                query += " filter:replies";
+            } else if (selectedFilter === 'news') {
+                query += " filter:news";
+            } else if (selectedFilter === 'verified') {
+                query += " filter:verified";
+            } else if (selectedFilter === 'images') {
+                query += " filter:images";
+            } else if (selectedFilter === 'videos') {
+                query += " filter:videos";
+            } else if (selectedFilter === 'sensitive') {
+                query += " filter:safe";
+            }
+
+            twitterSearchUrl += encodeURIComponent(query);
+            twitterSearchUrl += ` geocode:${geo},${radius}KM`;
+
+            if (startDate && endDate) {
+                const start = new Date(startDate);
+                const end = new Date(endDate);
+                if (start > end) {
+                    showToast('Başlangıç tarihi, bitiş tarihinden sonra olamaz!', 'error');
+                    return null;
+                }
+                twitterSearchUrl += ` since:${startDate} until:${endDate}`;
+            }
+
+            twitterSearchUrl += "&f=live";
+
+            return twitterSearchUrl;
+        }
+
+        // Form gönderildiğinde hangi fonksiyonun çağrılacağını belirle
+        let isSubmitting = false; // Formun gönderilip gönderilmediğini kontrol etmek için
+
+        document.querySelector('form#searchForm').addEventListener('submit', function (event) {
+            event.preventDefault();
+
+            const twitterSearchUrl = generateTwitterUrl();
+            if (twitterSearchUrl) {
+                const query = document.getElementById('searchQuery').value.trim();
+                const timestamp = new Date().toISOString();
+
+                // Yeni aramayı recentSearches dizisine ekle
+                recentSearches.unshift({ query, url: twitterSearchUrl, timestamp });
+
+                // Diziyi localStorage'a kaydet
+                try {
+                    localStorage.setItem('recentSearches', JSON.stringify(recentSearches));
+                } catch (e) {
+                    console.error('Son aramalar kaydedilirken hata oluştu:', e);
+                }
+
+                // Son aramaları güncelle
+                updateRecentSearches();
+
+                // Yeni sekmede arama URL'sini aç
+                window.open(twitterSearchUrl, '_blank');
+            }
+        });
+
+
+        // Son Aramaları ve Favori Aramaları Yükle
+        function loadSearches(key) {
+            try {
+                const data = localStorage.getItem(key);
+                return data ? JSON.parse(data) : [];
+            } catch (e) {
+                console.error(`${key} yüklenirken hata oluştu:`, e);
+                return [];
+            }
+        }
+
+        let recentSearches = loadSearches('recentSearches');
+        let favoriteSearches = loadSearches('favoriteSearches');
+
+        // Tarih ve Saat Formatı
+        function formatDateTime(dateString) {
+            try {
+                const date = new Date(dateString);
+                return new Intl.DateTimeFormat('tr-TR', {
+                    year: 'numeric',
+                    month: '2-digit',
+                    day: '2-digit',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    second: '2-digit'
+                }).format(date);
+            } catch (e) {
+                console.error('Tarih formatlama hatası:', e);
+                return 'Bilinmeyen tarih';
+            }
+        }
+
+        // Son Aramaları Listele
+        function updateRecentSearches() {
+            const recentSearchesList = document.getElementById('recentSearchesList');
+            recentSearchesList.innerHTML = '';
+
+            if (recentSearches.length === 0) {
+                const emptyMessage = document.createElement('li');
+                emptyMessage.innerHTML = '<div style="width:100%; text-align:center; padding:15px; color:#657786;">ARAMA GEÇMİŞİ YOK</div>';
+                recentSearchesList.appendChild(emptyMessage);
+                return;
+            }
+
+            recentSearches.forEach((search, index) => {
+                const li = document.createElement('li');
+                const starButton = document.createElement('button');
+                starButton.className = 'star-button';
+                starButton.innerHTML = '★';
+                starButton.setAttribute('aria-label', 'Favorilere ekle');
+
+                const isFavorited = favoriteSearches.some(fav => fav.url === search.url);
+                if (isFavorited) {
+                    starButton.classList.add('favorited');
+                }
+
+                starButton.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const isFavorited = favoriteSearches.some(fav => fav.url === search.url);
+                    if (isFavorited) {
+                        favoriteSearches = favoriteSearches.filter(fav => fav.url !== search.url);
+                        starButton.classList.remove('favorited');
+                    } else {
+                        favoriteSearches.unshift(search);
+                        starButton.classList.add('favorited');
+                    }
+                    
+                    try {
+                        localStorage.setItem('favoriteSearches', JSON.stringify(favoriteSearches));
+                        updateFavoriteSearches();
+                    } catch (e) {
+                        console.error('Favoriler kaydedilirken hata oluştu:', e);
+                        showToast('Favoriler kaydedilemedi', 'error');
+                    }
+                });
+
+                const searchText = document.createElement('div');
+                searchText.textContent = search.query;
+                const searchDate = document.createElement('div');
+                searchDate.className = 'search-date';
+                searchDate.textContent = formatDateTime(search.timestamp);
+                li.appendChild(starButton);
+                li.appendChild(searchText);
+                li.appendChild(searchDate);
+
+                li.addEventListener('click', () => {
+                    window.open(search.url, '_blank');
+                });
+
+                const deleteButton = document.createElement('button');
+                deleteButton.className = 'delete-button';
+                deleteButton.innerHTML = '<i class="ri-delete-bin-line"></i> SİL';
+                deleteButton.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    recentSearches.splice(index, 1);
+                    
+                    try {
+                        localStorage.setItem('recentSearches', JSON.stringify(recentSearches));
+                        updateRecentSearches();
+                    } catch (e) {
+                        console.error('Arama silinirken hata oluştu:', e);
+                        showToast('Arama silinemedi', 'error');
+                    }
+                });
+                li.appendChild(deleteButton);
+                recentSearchesList.appendChild(li);
+            });
+        }
+
+        // Favori Aramaları Listele
+        function updateFavoriteSearches() {
+            const favoriteSearchesList = document.getElementById('favoriteSearchesList');
+            favoriteSearchesList.innerHTML = '';
+
+            if (favoriteSearches.length === 0) {
+                const emptyMessage = document.createElement('li');
+                emptyMessage.innerHTML = '<div style="width:100%; text-align:center; padding:15px; color:#657786;">FAVORİ ARAMA YOK</div>';
+                favoriteSearchesList.appendChild(emptyMessage);
+                return;
+            }
+
+            favoriteSearches.forEach((search, index) => {
+                const li = document.createElement('li');
+                const searchText = document.createElement('div');
+                searchText.textContent = search.query;
+                const searchDate = document.createElement('div');
+                searchDate.className = 'search-date';
+                searchDate.textContent = formatDateTime(search.timestamp);
+                li.appendChild(searchText);
+                li.appendChild(searchDate);
+
+                li.addEventListener('click', () => {
+                    window.open(search.url, '_blank');
+                });
+
+                const deleteButton = document.createElement('button');
+                deleteButton.className = 'delete-button';
+                deleteButton.innerHTML = '<i class="ri-delete-bin-line"></i> SİL';
+                deleteButton.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    favoriteSearches.splice(index, 1);
+                    
+                    try {
+                        localStorage.setItem('favoriteSearches', JSON.stringify(favoriteSearches));
+                        updateFavoriteSearches();
+                    } catch (e) {
+                        console.error('Favori silinirken hata oluştu:', e);
+                        showToast('Favori silinemedi', 'error');
+                    }
+                });
+                li.appendChild(deleteButton);
+                favoriteSearchesList.appendChild(li);
+            });
+        }
+
+        // BAĞLANTIYI KOPYALA
+        document.getElementById('copySearchLink').addEventListener('click', async () => {
+            const twitterUrl = generateTwitterUrl();
+            if (!twitterUrl) return;
+            
+            try {
+                await navigator.clipboard.writeText(twitterUrl);
+                showToast('Bağlantı kopyalandı!', 'success');
+            } catch (err) {
+                console.error('Kopyalama hatası:', err);
+                showToast('Kopyalama başarısız!', 'error');
+            }
+        });
+
+        // QR KOD OLUŞTUR
+        document.getElementById('generateQR').addEventListener('click', () => {
+            const twitterUrl = generateTwitterUrl();
+            if (!twitterUrl) return;
+            
+            const qrModal = document.createElement('div');
+            qrModal.className = 'qr-modal';
+            qrModal.innerHTML = `
+                <div class="qr-content">
+                    <h3>QR KOD</h3>
+                    <div id="qrcode-container"></div>
+                    <div style="display: flex; justify-content: center; gap: 10px; margin-top: 15px;">
+                        <button class="primary-btn" onclick="window.open('${twitterUrl}', '_blank')">URL Aç</button>
+                        <button class="danger-btn" id="closeQRModal">Kapat</button>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(qrModal);
+
+            const container = document.getElementById('qrcode-container');
+            QRCode.toCanvas(twitterUrl, { width: 200 }, (error, canvas) => {
+                if (error) {
+                    console.error('QR kod oluşturulurken hata oluştu:', error);
+                    showToast('QR kodu oluşturulamadı', 'error');
+                    return;
+                }
+                container.appendChild(canvas);
+            });
+
+            // Modalı kapatma işlevi
+            const closeModal = () => {
+                qrModal.remove();
+                container.innerHTML = '';
+            };
+
+            document.getElementById('closeQRModal')?.addEventListener('click', closeModal);
+            qrModal.addEventListener('click', (e) => {
+                if (e.target === qrModal) {
+                    closeModal();
+                }
+            });
+        });
+
+
+        // İstatistikleri Güncelle
+        function updateStats(radius) {
+            const randomTweets = Math.floor(Math.random() * 5000) + 500;
+            const randomUsers = Math.floor(Math.random() * 1000) + 100;
+
+            document.querySelector('.stats-card:nth-child(1) .count').textContent = randomTweets.toLocaleString();
+            document.querySelector('.stats-card:nth-child(2) .count').textContent = randomUsers.toLocaleString();
+            document.querySelector('.stats-card:nth-child(3) .count').textContent = `${radius} KM`;
+        }
+
+        // Sayfa Yüklendiğinde İlk Ayarları Yap
+        window.addEventListener('load', function() {
+            checkDarkMode();
+            
+            const [lat, lng] = defaultSettings.city.split(',').map(Number);
+            const radius = defaultSettings.radius || 100;
+            updateMap(lat, lng, radius);
+            updateStats(radius);
+
+            document.querySelector('.search-filters button[data-filter="latest"]').classList.add('active');
+            updateRecentSearches();
+            updateFavoriteSearches();
+            loadNotes();
+        });
+
+        // Tüm Aramaları Temizle Butonu İşlevi
+        document.getElementById('clearAllRecent').addEventListener('click', function() {
+            if (confirm('Tüm arama geçmişini silmek istediğinize emin misiniz?')) {
+                recentSearches = [];
+                
+                try {
+                    localStorage.setItem('recentSearches', JSON.stringify(recentSearches));
+                    updateRecentSearches();
+                    showToast('Arama geçmişi temizlendi', 'success');
+                } catch (e) {
+                    console.error('Arama geçmişi temizlenirken hata oluştu:', e);
+                    showToast('Arama geçmişi temizlenemedi', 'error');
+                }
+            }
+        });
+
+        // Tüm Favori Aramaları Temizle Butonu İşlevi
+        document.getElementById('clearAllFavorites').addEventListener('click', function() {
+            if (confirm('Tüm favori aramaları silmek istediğinize emin misiniz?')) {
+                favoriteSearches = [];
+                
+                try {
+                    localStorage.setItem('favoriteSearches', JSON.stringify(favoriteSearches));
+                    updateFavoriteSearches();
+                    showToast('Favoriler temizlendi', 'success');
+                } catch (e) {
+                    console.error('Favoriler temizlenirken hata oluştu:', e);
+                    showToast('Favoriler temizlenemedi', 'error');
+                }
+            }
+        });
+
+        // Scroll to top butonu
+        window.addEventListener('scroll', () => {
+            const fab = document.getElementById('scrollToTop');
+            if (window.scrollY > 300) {
+                fab.classList.add('visible');
+            } else {
+                fab.classList.remove('visible');
+            }
+        });
+
+        document.getElementById('scrollToTop').addEventListener('click', () => {
+            window.scrollTo({
+                top: 0,
+                behavior: 'smooth'
+            });
+        });
+
+        // Buton ripple efekti
+        document.querySelectorAll('button').forEach(button => {
+            button.addEventListener('click', function(e) {
+                const x = e.clientX - e.target.getBoundingClientRect().left;
+                const y = e.clientY - e.target.getBoundingClientRect().top;
+                
+                const ripple = document.createElement('span');
+                ripple.style.left = `${x}px`;
+                ripple.style.top = `${y}px`;
+                ripple.classList.add('ripple-effect');
+                
+                this.appendChild(ripple);
+                
+                setTimeout(() => {
+                    ripple.remove();
+                }, 1000);
+            });
+        });
+
+        // Harita yüksekliğini responsive ayarla
+        function adjustMapHeight() {
+            const map = document.getElementById('map');
+            if (window.innerWidth < 768) {
+                map.style.height = '300px';
+            } else {
+                map.style.height = '500px';
+            }
+        }
+
+        window.addEventListener('resize', adjustMapHeight);
+        adjustMapHeight();
+
+        // IP ve Lokasyon Bilgisi Butonu
+        document.getElementById('showIpInfo').addEventListener('click', async function () {
+            const modal = document.getElementById('ipInfoModal');
+            modal.style.display = 'flex';
+
+            try {
+                const response = await fetch('https://ipapi.co/json/');
+                const data = await response.json();
+
+                document.getElementById('ipAddress').textContent = data.ip || 'Bilinmiyor';
+                document.getElementById('port').textContent = '80'; // Varsayılan HTTP portu
+                document.getElementById('cityName').textContent = data.city || 'Bilinmiyor';
+                document.getElementById('coordinates').textContent = `${data.latitude}, ${data.longitude}` || 'Bilinmiyor';
+            } catch (error) {
+                console.error('IP bilgisi alınırken hata oluştu:', error);
+                document.getElementById('ipAddress').textContent = 'Hata';
+                document.getElementById('port').textContent = 'Hata';
+                document.getElementById('cityName').textContent = 'Hata';
+                document.getElementById('coordinates').textContent = 'Hata';
+            }
+        });
+
+        // Modal Kapatma
+        document.getElementById('closeIpInfoModal').addEventListener('click', function () {
+            document.getElementById('ipInfoModal').style.display = 'none';
+        });
+
+        // Tarih ve Saat Butonu
+        document.getElementById('showDateTime').addEventListener('click', function () {
+            const modal = document.getElementById('dateTimeModal');
+            modal.style.display = 'flex';
+
+            const now = new Date();
+            const options = { year: 'numeric', month: 'long', day: 'numeric' };
+            const timeOptions = { hour: '2-digit', minute: '2-digit', second: '2-digit' };
+
+            document.getElementById('currentDate').textContent = now.toLocaleDateString('tr-TR', options);
+            document.getElementById('currentTime').textContent = now.toLocaleTimeString('tr-TR', timeOptions);
+        });
+
+        // Modal Kapatma
+        document.getElementById('closeDateTimeModal').addEventListener('click', function () {
+            document.getElementById('dateTimeModal').style.display = 'none';
+        });
+        
+        // DOM tamamen yüklendiğinde çalıştır
+        document.addEventListener('DOMContentLoaded', function () {
+            // Kaydet butonuna tıklama olayını bağla
+            document.getElementById('saveDefaultSettings').addEventListener('click', function () {
+                const city = document.getElementById('city').value;
+                const radius = document.getElementById('radius').value;
+
+                if (!city || !radius) {
+                    showToast('Lütfen şehir ve yarıçap seçin', 'error');
+                    return;
+                }
+
+                try {
+                    if (!isLocalStorageAvailable()) {
+                        throw new Error('Tarayıcınız localStorage\'ı desteklemiyor veya engellidi.');
+                    }
+
+                    // Ayarları kaydet
+                    const settings = { city, radius };
+                    localStorage.setItem('defaultSettings', JSON.stringify(settings));
+
+                    // Varsayılan ayarları güncelle
+                    updateDefaultSettingsInfo();
+
+                    // Başarı mesajı ve animasyon
+                    showToast('Varsayılan ayarlar kaydedildi!', 'success');
+
+                    const btn = this;
+                    btn.innerHTML = '<i class="ri-check-line"></i> KAYDEDİLDİ';
+                    btn.classList.add('pulse-animation');
+                    setTimeout(() => {
+                        btn.innerHTML = '<i class="ri-save-line"></i> KAYDET';
+                        btn.classList.remove('pulse-animation');
+                    }, 2000);
+
+                } catch (e) {
+                    console.error('Ayarlar kaydedilirken hata oluştu:', e);
+                    showToast('Ayarlar kaydedilemedi: ' + e.message, 'error');
+                }
+            });
+        });
+
+        // Hakkında sütununu açılır kapanır hale getirme
+        document.getElementById('aboutToggle').addEventListener('click', function () {
+            const aboutContent = document.getElementById('aboutContent');
+            const aboutArrow = document.getElementById('aboutArrow');
+
+            if (aboutContent.style.display === 'none' || aboutContent.style.display === '') {
+                aboutContent.style.display = 'block';
+                aboutArrow.classList.remove('ri-arrow-down-s-line');
+                aboutArrow.classList.add('ri-arrow-up-s-line');
+            } else {
+                aboutContent.style.display = 'none';
+                aboutArrow.classList.remove('ri-arrow-up-s-line');
+                aboutArrow.classList.add('ri-arrow-down-s-line');
+            }
+        });
+
+        // NOT İŞLEMLERİ
+        let notes = [];
+        let editingNoteId = null;
+
+        // Notları yükle
+        function loadNotes() {
+            try {
+                const savedNotes = localStorage.getItem('notes');
+                notes = savedNotes ? JSON.parse(savedNotes) : [];
+                renderNotes();
+            } catch (e) {
+                console.error('Notlar yüklenirken hata oluştu:', e);
+                notes = [];
+            }
+        }
+
+        // Notları render et
+        function renderNotes() {
+            const notesList = document.getElementById('notesList');
+            notesList.innerHTML = '';
+
+            if (notes.length === 0) {
+                const emptyMessage = document.createElement('li');
+                emptyMessage.innerHTML = '<div style="width:100%; text-align:center; padding:15px; color:#657786;">NOT EKLENMEDİ</div>';
+                notesList.appendChild(emptyMessage);
+                return;
+            }
+
+            notes.forEach((note, index) => {
+                const li = document.createElement('li');
+                li.className = 'note-item';
+
+                const noteText = document.createElement('div');
+                noteText.className = 'note-text';
+                noteText.textContent = note.text;
+
+                const noteActions = document.createElement('div');
+                noteActions.className = 'note-actions';
+
+                const editBtn = document.createElement('button');
+                editBtn.className = 'info-btn';
+                editBtn.innerHTML = '<i class="ri-edit-line"></i>';
+                editBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    openNoteModal(note.id);
+                });
+
+                const deleteBtn = document.createElement('button');
+                deleteBtn.className = 'danger-btn';
+                deleteBtn.innerHTML = '<i class="ri-delete-bin-line"></i>';
+                deleteBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    deleteNote(note.id);
+                });
+
+                noteActions.appendChild(editBtn);
+                noteActions.appendChild(deleteBtn);
+                li.appendChild(noteText);
+                li.appendChild(noteActions);
+                notesList.appendChild(li);
+            });
+        }
+
+        // Not ekle/düzenle modalını aç
+        function openNoteModal(noteId = null) {
+            const modal = document.getElementById('noteModal');
+            const title = document.getElementById('noteModalTitle');
+            const textarea = document.getElementById('noteText');
+
+            if (noteId) {
+                // Düzenleme modu
+                editingNoteId = noteId;
+                const note = notes.find(n => n.id === noteId);
+                title.textContent = 'NOTU DÜZENLE';
+                textarea.value = note.text;
+            } else {
+                // Ekleme modu
+                editingNoteId = null;
+                title.textContent = 'YENİ NOT EKLE';
+                textarea.value = '';
+            }
+
+            modal.style.display = 'flex';
+            textarea.focus();
+        }
+
+        // Not kaydet
+        function saveNote() {
+            const text = document.getElementById('noteText').value.trim();
+            if (!text) {
+                showToast('Not boş olamaz!', 'error');
+                return;
+            }
+
+            if (editingNoteId) {
+                // Düzenleme işlemi
+                const noteIndex = notes.findIndex(n => n.id === editingNoteId);
+                if (noteIndex !== -1) {
+                    notes[noteIndex].text = text;
+                }
+            } else {
+                // Yeni not ekleme
+                const newNote = {
+                    id: Date.now().toString(),
+                    text: text,
+                    createdAt: new Date().toISOString()
+                };
+                notes.unshift(newNote);
+            }
+
+            try {
+                localStorage.setItem('notes', JSON.stringify(notes));
+                renderNotes();
+                showToast(editingNoteId ? 'Not güncellendi!' : 'Not eklendi!', 'success');
+                closeNoteModal();
+            } catch (e) {
+                console.error('Not kaydedilirken hata oluştu:', e);
+                showToast('Not kaydedilemedi!', 'error');
+            }
+        }
+
+        // Not sil
+        function deleteNote(noteId) {
+            if (confirm('Bu notu silmek istediğinize emin misiniz?')) {
+                notes = notes.filter(note => note.id !== noteId);
+                
+                try {
+                    localStorage.setItem('notes', JSON.stringify(notes));
+                    renderNotes();
+                    showToast('Not silindi!', 'success');
+                } catch (e) {
+                    console.error('Not silinirken hata oluştu:', e);
+                    showToast('Not silinemedi!', 'error');
+                }
+            }
+        }
+
+        // Not modalını kapat
+        function closeNoteModal() {
+            document.getElementById('noteModal').style.display = 'none';
+            editingNoteId = null;
+        }
+
+        // Not ekle butonu
+        document.getElementById('addNoteBtn').addEventListener('click', () => {
+            openNoteModal();
+        });
+
+        // Not kaydet butonu
+        document.getElementById('saveNoteBtn').addEventListener('click', saveNote);
+
+        // Not iptal butonu
+        document.getElementById('cancelNoteBtn').addEventListener('click', closeNoteModal);
+
+        // Modal dışına tıklandığında kapat
+        document.getElementById('noteModal').addEventListener('click', (e) => {
+            if (e.target === document.getElementById('noteModal')) {
+                closeNoteModal();
+            }
+        });
+
+        // TAKİP EDİLEN HESAPLAR İŞLEMLERİ
+        let followedAccounts = [];
+        let editingAccountId = null;
+
+        // Takip edilen hesapları yükle
+        function loadFollowedAccounts() {
+            try {
+                const savedAccounts = localStorage.getItem('followedAccounts');
+                followedAccounts = savedAccounts ? JSON.parse(savedAccounts) : [];
+                renderFollowedAccounts();
+            } catch (e) {
+                console.error('Takip edilen hesaplar yüklenirken hata oluştu:', e);
+                followedAccounts = [];
+            }
+        }
+
+        // Takip edilen hesapları render et
+        function renderFollowedAccounts() {
+            const accountsList = document.getElementById('followedAccountsList');
+            accountsList.innerHTML = '';
+
+            if (followedAccounts.length === 0) {
+                const emptyMessage = document.createElement('li');
+                emptyMessage.innerHTML = '<div style="width:100%; text-align:center; padding:15px; color:#657786;">TAKİP EDİLEN HESAP / URL EKLENMEDİ</div>';
+                accountsList.appendChild(emptyMessage);
+                return;
+            }
+
+            followedAccounts.forEach((account) => {
+                const li = document.createElement('li');
+                li.className = 'note-item';
+
+                const accountText = document.createElement('div');
+                accountText.className = 'note-text';
+                accountText.textContent = account.displayName || account.url;
+
+                // Hesap URL'sine tıklanabilirlik ekle
+                li.addEventListener('click', () => {
+                    window.open(account.url, '_blank');
+                });
+
+                const accountActions = document.createElement('div');
+                accountActions.className = 'note-actions';
+
+                const editBtn = document.createElement('button');
+                editBtn.className = 'info-btn';
+                editBtn.innerHTML = '<i class="ri-edit-line"></i>';
+                editBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    openAccountModal(account.id);
+                });
+
+                const deleteBtn = document.createElement('button');
+                deleteBtn.className = 'danger-btn';
+                deleteBtn.innerHTML = '<i class="ri-delete-bin-line"></i>';
+                deleteBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    deleteAccount(account.id);
+                });
+
+                accountActions.appendChild(editBtn);
+                accountActions.appendChild(deleteBtn);
+                li.appendChild(accountText);
+                li.appendChild(accountActions);
+                accountsList.appendChild(li);
+            });
+        }
+
+        // Notları render et
+        function renderNotes() {
+            const notesList = document.getElementById('notesList');
+            notesList.innerHTML = '';
+
+            if (notes.length === 0) {
+                const emptyMessage = document.createElement('li');
+                emptyMessage.innerHTML = '<div style="width:100%; text-align:center; padding:15px; color:#657786;">NOT EKLENMEDİ</div>';
+                notesList.appendChild(emptyMessage);
+                return;
+            }
+
+            notes.forEach((note, index) => {
+                const li = document.createElement('li');
+                li.className = 'note-item';
+
+                const noteText = document.createElement('div');
+                noteText.className = 'note-text';
+                noteText.textContent = note.text;
+
+                const noteActions = document.createElement('div');
+                noteActions.className = 'note-actions';
+
+                const editBtn = document.createElement('button');
+                editBtn.className = 'info-btn';
+                editBtn.innerHTML = '<i class="ri-edit-line"></i>';
+                editBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    openNoteModal(note.id);
+                });
+
+                const deleteBtn = document.createElement('button');
+                deleteBtn.className = 'danger-btn';
+                deleteBtn.innerHTML = '<i class="ri-delete-bin-line"></i>';
+                deleteBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    deleteNote(note.id);
+                });
+
+                noteActions.appendChild(editBtn);
+                noteActions.appendChild(deleteBtn);
+                li.appendChild(noteText);
+                li.appendChild(noteActions);
+                notesList.appendChild(li);
+            });
+        }
+
+        // Takip edilen hesap ekle/düzenle modalını aç
+        function openAccountModal(accountId = null) {
+            const modal = document.getElementById('accountModal');
+            const title = document.getElementById('accountModalTitle');
+            const urlInput = document.getElementById('accountUrl');
+            const displayNameInput = document.getElementById('accountDisplayName');
+
+            if (accountId) {
+                // Düzenleme modu
+                editingAccountId = accountId;
+                const account = followedAccounts.find(a => a.id === accountId);
+                title.textContent = 'HESABI DÜZENLE';
+                urlInput.value = account.url;
+                displayNameInput.value = account.displayName || '';
+            } else {
+                // Ekleme modu
+                editingAccountId = null;
+                title.textContent = 'YENİ HESAP EKLE';
+                urlInput.value = '';
+                displayNameInput.value = '';
+            }
+
+            modal.style.display = 'flex';
+            urlInput.focus();
+        }
+
+        // Takip edilen hesap kaydet
+        function saveAccount() {
+            const url = document.getElementById('accountUrl').value.trim();
+            const displayName = document.getElementById('accountDisplayName').value.trim();
+
+            if (!url) {
+                showToast('Hesap URL\'si boş olamaz!', 'error');
+                return;
+            }
+
+            if (editingAccountId) {
+                // Düzenleme işlemi
+                const accountIndex = followedAccounts.findIndex(a => a.id === editingAccountId);
+                if (accountIndex !== -1) {
+                    followedAccounts[accountIndex].url = url;
+                    followedAccounts[accountIndex].displayName = displayName;
+                }
+            } else {
+                // Yeni hesap ekleme
+                const newAccount = {
+                    id: Date.now().toString(),
+                    url: url,
+                    displayName: displayName,
+                    createdAt: new Date().toISOString()
+                };
+                followedAccounts.unshift(newAccount);
+            }
+
+            try {
+                localStorage.setItem('followedAccounts', JSON.stringify(followedAccounts));
+                renderFollowedAccounts();
+                showToast(editingAccountId ? 'Hesap güncellendi!' : 'Hesap eklendi!', 'success');
+                closeAccountModal();
+            } catch (e) {
+                console.error('Hesap kaydedilirken hata oluştu:', e);
+                showToast('Hesap kaydedilemedi!', 'error');
+            }
+        }
+
+        // Takip edilen hesap sil
+        function deleteAccount(accountId) {
+            if (confirm('Bu hesabı silmek istediğinize emin misiniz?')) {
+                followedAccounts = followedAccounts.filter(account => account.id !== accountId);
+
+                try {
+                    localStorage.setItem('followedAccounts', JSON.stringify(followedAccounts));
+                    renderFollowedAccounts();
+                    showToast('Hesap silindi!', 'success');
+                } catch (e) {
+                    console.error('Hesap silinirken hata oluştu:', e);
+                    showToast('Hesap silinemedi!', 'error');
+                }
+            }
+        }
+
+        // Takip edilen hesap modalını kapat
+        function closeAccountModal() {
+            document.getElementById('accountModal').style.display = 'none';
+            editingAccountId = null;
+        }
+
+        // Hesap ekle butonu
+        document.getElementById('addAccountBtn').addEventListener('click', () => {
+            openAccountModal();
+        });
+
+        // Hesap kaydet butonu
+        document.getElementById('saveAccountBtn').addEventListener('click', saveAccount);
+
+        // Hesap iptal butonu
+        document.getElementById('cancelAccountBtn').addEventListener('click', closeAccountModal);
+
+        // Modal dışına tıklandığında kapat
+        document.getElementById('accountModal').addEventListener('click', (e) => {
+            if (e.target === document.getElementById('accountModal')) {
+                closeAccountModal();
+            }
+        });
+
+        // Sayfa yüklendiğinde takip edilen hesapları yükle
+        window.addEventListener('load', loadFollowedAccounts);
+
+        // Konumum Butonu İşlevi
+        document.getElementById('showMyLocation').addEventListener('click', function () {
+            if (!navigator.geolocation) {
+                showToast('Tarayıcınız konum özelliğini desteklemiyor', 'error');
+                return;
+            }
+
+            navigator.geolocation.getCurrentPosition(
+                function (position) {
+                    const { latitude, longitude } = position.coords;
+
+                    // Haritayı mevcut konuma odakla
+                    map.setView([latitude, longitude], 13);
+
+                    // Mevcut konumu işaretle
+                    const myLocationMarker = L.marker([latitude, longitude], {
+                        icon: L.divIcon({
+                            className: 'twitter-icon',
+                            html: '<i class="ri-map-pin-2-fill" style="color: red; font-size: 2rem;"></i>',
+                            iconSize: [30, 30],
+                            iconAnchor: [15, 15]
+                        })
+                    }).addTo(map);
+
+                    // Bilgi penceresi ekle
+                    myLocationMarker.bindPopup('Mevcut Konumunuz').openPopup();
+                },
+                function (error) {
+                    showToast('Konum alınamadı: ' + error.message, 'error');
+                }
+            );
+        });
+
+        document.getElementById('attitudeButton').addEventListener('click', function (e) {
+            const emojiPicker = document.getElementById('emojiPicker');
+            const rect = e.target.getBoundingClientRect();
+
+            // Emoji seçim kutusunu butonun altına yerleştir
+            emojiPicker.style.top = `${rect.bottom + window.scrollY}px`;
+            emojiPicker.style.left = `${rect.left + window.scrollX}px`;
+            emojiPicker.style.display = emojiPicker.style.display === 'none' ? 'grid' : 'none';
+        });
+       
+        // Emoji butonlarına tıklama işlevi
+       document.querySelectorAll('.emoji-btn').forEach(button => {
+            button.addEventListener('click', function (event) {
+                event.stopPropagation(); // Tıklama olayını durdur
+                event.preventDefault(); // Yeni sekmede açılmayı engelle
+                const emoji = this.textContent;
+                const searchQueryInput = document.getElementById('searchQuery');
+
+                // Emoji arama metnine eklenir
+                searchQueryInput.value += ` ${emoji}`;
+
+                // Emoji seçim kutusunu gizle
+                document.getElementById('emojiPicker').style.display = 'none';
+            });
+        });
+
+        // Emoji seçim kutusunu kapatmak için sayfa dışına tıklama
+        document.addEventListener('click', function (e) {
+            const emojiPicker = document.getElementById('emojiPicker');
+            if (!emojiPicker.contains(e.target) && e.target.id !== 'attitudeButton') {
+                emojiPicker.style.display = 'none';
+            }
+        });
+
+
+        // Enter tuşuna basıldığında formu gönder
+        document.getElementById('searchQuery').addEventListener('keypress', function (event) {
+            if (event.key === 'Enter') {
+                event.preventDefault(); // Varsayılan form gönderimini engelle
+                document.querySelector('form#searchForm').dispatchEvent(new Event('submit')); // Formu gönder
+            }
+        });
+
+
+        // Tüm butonlara tooltip ekle
+        document.querySelectorAll('button').forEach(button => {
+            // Eğer butonun bir "title" özelliği varsa
+            if (button.hasAttribute('title')) {
+                const tooltipText = button.getAttribute('title');
+                button.removeAttribute('title'); // Varsayılan tarayıcı tooltip'ini kaldır
+
+                // Tooltip kapsayıcısını oluştur
+                const tooltipContainer = document.createElement('div');
+                tooltipContainer.classList.add('tooltip-container');
+
+                // Tooltip metnini oluştur
+                const tooltip = document.createElement('span');
+                tooltip.classList.add('tooltip-text');
+                tooltip.textContent = tooltipText;
+
+                // Butonu kapsayıcıya sar ve tooltip'i ekle
+                button.parentNode.insertBefore(tooltipContainer, button);
+                tooltipContainer.appendChild(button);
+                tooltipContainer.appendChild(tooltip);
+            }
+        });
+
+        // "Son 24 Saat" butonuna tıklama işlevi
+        document.getElementById('last24HoursBtn').addEventListener('click', function () {
+            const now = new Date();
+            const yesterday = new Date(now);
+            yesterday.setDate(now.getDate() - 1);
+
+            // Tarih formatını YYYY-MM-DD olarak ayarla
+            const formatDate = (date) => date.toISOString().split('T')[0];
+
+            document.getElementById('startDate').value = formatDate(yesterday);
+            document.getElementById('endDate').value = formatDate(now);
+        });
+
+        // Bilgiler Butonu İşlevi
+document.getElementById('showGuide').addEventListener('click', function () {
+    document.getElementById('guideModal').style.display = 'flex';
+});
+
+// Bilgiler Modalını Kapatma
+document.getElementById('closeGuideModal').addEventListener('click', function () {
+    document.getElementById('guideModal').style.display = 'none';
+});
+
+// Modal dışına tıklanırsa kapat
+document.getElementById('guideModal').addEventListener('click', function (e) {
+    if (e.target === this) {
+        this.style.display = 'none';
+    }
+});
+
+        // Elle konum seçimi için değişkenler
+        let isSelectingLocation = false;
+        let manualLocation = null;
+        let manualCircle = null;
+        let manualMarker = null;
+
+        // Haritadan konum seçme butonu
+        document.getElementById('enableMapSelect').addEventListener('click', function () {
+            isSelectingLocation = true;
+            this.disabled = true;
+            document.getElementById('cancelMapSelect').style.display = 'inline-flex';
+            map.getContainer().style.cursor = 'crosshair';
+            showToast('Haritadan konum seçmek için haritaya tıklayın', 'success');
+        });
+
+        // Konum seçimini iptal et butonu
+        document.getElementById('cancelMapSelect').addEventListener('click', function () {
+            isSelectingLocation = false;
+            manualLocation = null;
+            this.style.display = 'none';
+            document.getElementById('enableMapSelect').disabled = false;
+            document.getElementById('selectedMapLocation').style.display = 'none';
+            map.getContainer().style.cursor = '';
+            // Seçili marker ve çemberi kaldır
+            if (manualMarker) { map.removeLayer(manualMarker); manualMarker = null; }
+            if (manualCircle) { map.removeLayer(manualCircle); manualCircle = null; }
+            // Şehir ve yarıçap dropdownlarını tekrar aktif et
+            document.getElementById('city').disabled = false;
+            document.getElementById('radius').disabled = false;
+            // Harita ve logoları şehir/yarıçap seçimine döndür
+            const [lat, lng] = document.getElementById('city').value.split(',').map(Number);
+            const radius = document.getElementById('radius').value || 100;
+            updateMap(lat, lng, radius);
+            twitterMarkers.forEach(marker => map.removeLayer(marker));
+            twitterMarkers = [];
+            addTwitterLogos({ lat, lng }, radius);
+            animateTwitterLogos({ lat, lng }, radius);
+        });
+
+        // Harita tıklama ile konum seçme
+        map.on('click', function (e) {
+            if (!isSelectingLocation) return;
+            manualLocation = e.latlng;
+            // Şehir ve yarıçap dropdownlarını devre dışı bırak
+            document.getElementById('city').disabled = true;
+            document.getElementById('radius').disabled = true;
+
+            // Seçili marker ve çemberi kaldır
+            if (manualMarker) { map.removeLayer(manualMarker); }
+            if (manualCircle) { map.removeLayer(manualCircle); }
+
+            // KAYITLI (şehir seçimiyle eklenen) ÇEMBERİ KALDIR
+            if (circle && map.hasLayer(circle)) {
+                map.removeLayer(circle);
+            }
+
+            // Marker ve çember ekle
+            manualMarker = L.marker(manualLocation, {
+                icon: L.divIcon({
+                    className: 'twitter-icon',
+                    html: '<i class="ri-map-pin-2-fill" style="color: #FF4500; font-size: 2rem;"></i>',
+                    iconSize: [30, 30],
+                    iconAnchor: [15, 15]
+                }),
+                draggable: true // Sürüklenebilir yap
+            }).addTo(map);
+
+            manualMarker.on('dragend', function(e) {
+                manualLocation = e.target.getLatLng();
+                manualCircle.setLatLng(manualLocation);
+                document.getElementById('selectedLatLng').textContent = `${manualLocation.lat.toFixed(5)}, ${manualLocation.lng.toFixed(5)}`;
+                // Twitter logolarını güncelle
+                twitterMarkers.forEach(marker => map.removeLayer(marker));
+                twitterMarkers = [];
+                addTwitterLogos(manualLocation, document.getElementById('radius').value || 100);
+                animateTwitterLogos(manualLocation, document.getElementById('radius').value || 100);
+            });
+
+            const radius = document.getElementById('radius').value || 100;
+            manualCircle = L.circle(manualLocation, {
+                radius: radius * 1000,
+                color: '#FF4500',
+                fillColor: '#7937e0',
+                fillOpacity: 0.3,
+                weight: 2,
+                dashArray: '5, 5',
+                className: 'pulse-circle'
+            }).addTo(map);
+
+            map.fitBounds(manualCircle.getBounds(), { padding: [50, 50] });
+
+            // Seçilen konumu göster
+            document.getElementById('selectedLatLng').textContent = `${manualLocation.lat.toFixed(5)}, ${manualLocation.lng.toFixed(5)}`;
+            document.getElementById('selectedMapLocation').style.display = 'inline';
+
+            // Şehir adını güncelle (ters geokodlama ile)
+            fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${manualLocation.lat}&lon=${manualLocation.lng}&accept-language=tr`)
+                .then(res => res.json())
+                .then(data => {
+                    let cityName = "SEÇİLEN KONUM";
+                    if (data.address) {
+                        cityName = data.address.city || data.address.town || data.address.village || data.address.state || "SEÇİLEN KONUM";
+                    }
+                    document.getElementById('statsCity').textContent = cityName;
+                })
+                .catch(() => {
+                    document.getElementById('statsCity').textContent = "SEÇİLEN KONUM";
+                });
+
+            // Twitter logolarını yeni konuma göre güncelle
+            twitterMarkers.forEach(marker => map.removeLayer(marker));
+            twitterMarkers = [];
+            addTwitterLogos(manualLocation, radius);
+            animateTwitterLogos(manualLocation, radius);
+            showAddress(manualLocation.lat, manualLocation.lng);
+        });
+
+        // Yarıçap değişirse elle seçili konumun çemberini güncelle
+        document.getElementById('radius').addEventListener('change', function () {
+            if (manualLocation && manualCircle) {
+                manualCircle.setRadius(this.value * 1000);
+                // Twitter logolarını da güncelle
+                twitterMarkers.forEach(marker => map.removeLayer(marker));
+                twitterMarkers = [];
+                addTwitterLogos(manualLocation, this.value);
+                animateTwitterLogos(manualLocation, this.value);
+            }
+        });
+
+        function showAddress(lat, lng) {
+            fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`)
+                .then(res => res.json())
+                .then(data => {
+                    const country = (data.address && data.address.country) ? data.address.country : "Ülke bulunamadı";
+                    document.getElementById('selectedLatLng').textContent = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+                    document.getElementById('selectedCountry').textContent = `- ${country}`;
+                    showToast(data.display_name || "Adres bulunamadı", 'success');
+                });
+        }
+    </script>
+</body>
+</html>
